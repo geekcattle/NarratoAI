@@ -1463,174 +1463,365 @@ def render_omnivoice_tts_settings(tr):
 
 
 def render_doubaotts_settings(tr):
-    """渲染豆包语音 TTS 设置"""
-    # AK 输入
-    ak = st.text_input(
-        "Access Key",
-        value=config.doubaotts.get("ak", ""),
-        help=tr("Volcengine Access Key Help")
-    )
-
-    # SK 输入
-    sk = st.text_input(
-        "Secret Key",
-        value=config.doubaotts.get("sk", ""),
+    """渲染豆包语音 TTS 2.0 设置"""
+    # API Key 输入
+    api_key = st.text_input(
+        "API Key",
+        value=config.doubaotts.get("api_key", ""),
         type="password",
-        help=tr("Volcengine Secret Key Help")
+        help=tr("Volcengine API Key Help")
     )
 
-    # AppID 输入
-    appid = st.text_input(
-        "AppID",
-        value=config.doubaotts.get("appid", ""),
-        help=tr("Doubao AppID Help")
-    )
+    # Resource ID (模型版本) 输入
+    resource_id_options = {
+        "seed-tts-2.0": "豆包语音合成大模型 2.0",
+        "seed-icl-2.0": "豆包声音复刻大模型 2.0",
+    }
+    saved_resource_id = config.doubaotts.get("resource_id", "seed-tts-2.0")
+    if saved_resource_id not in resource_id_options:
+        saved_resource_id = "seed-tts-2.0"
 
-    # Token 输入
-    token = st.text_input(
-        "Token",
-        value=config.doubaotts.get("token", ""),
-        type="password",
-        help=tr("Doubao Token Help")
-    )
-
-    # 集群配置
-    cluster = st.text_input(
-        tr("Cluster"),
-        value=config.doubaotts.get("cluster", "volcano_tts"),
-        help=tr("Doubao Cluster Help")
+    resource_id = st.selectbox(
+        tr("Model Version (Resource ID)"),
+        options=list(resource_id_options.keys()),
+        format_func=lambda x: resource_id_options[x],
+        index=list(resource_id_options.keys()).index(saved_resource_id),
+        help=tr("Doubao Resource ID Help")
     )
 
     # 音色选择
-    # 在线音色列表（从文档中提取）
     voice_options = {
-        "BV700_V2_streaming": "灿灿 2.0",
-        "BV705_streaming": "炀炀",
-        "BV701_V2_streaming": "擎苍 2.0",
-        "BV001_V2_streaming": "通用女声 2.0",
-        "BV700_streaming": "灿灿",
-        "BV406_V2_streaming": "超自然音色-梓梓2.0",
-        "BV406_streaming": "超自然音色-梓梓",
-        "BV407_V2_streaming": "超自然音色-燃燃2.0",
-        "BV407_streaming": "超自然音色-燃燃",
-        "BV001_streaming": "通用女声",
-        "BV002_streaming": "通用男声",
-        "BV701_streaming": "擎苍",
-        "BV123_streaming": "阳光青年",
-        "BV120_streaming": "反卷青年",
-        "BV119_streaming": "通用赘婿",
-        "BV115_streaming": "古风少御",
-        "BV107_streaming": "霸气青叔",
-        "BV100_streaming": "质朴青年",
-        "BV104_streaming": "温柔淑女",
-        "BV004_streaming": "开朗青年",
-        "BV113_streaming": "甜宠少御",
-        "BV102_streaming": "儒雅青年",
-        "BV405_streaming": "甜美小源",
-        "BV007_streaming": "亲切女声",
-        "BV009_streaming": "知性女声",
-        "BV419_streaming": "诚诚",
-        "BV415_streaming": "童童",
-        "BV008_streaming": "亲切男声",
-        "BV408_streaming": "译制片男声",
-        "BV426_streaming": "懒小羊",
-        "BV428_streaming": "清新文艺女声",
-        "BV403_streaming": "鸡汤女声",
-        "BV158_streaming": "智慧老者",
-        "BV157_streaming": "慈爱姥姥",
-        "BR001_streaming": "说唱小哥",
-        "BV410_streaming": "活力解说男",
-        "BV411_streaming": "影视解说小帅",
-        "BV437_streaming": "解说小帅-多情感",
-        "BV412_streaming": "影视解说小美",
-        "BV159_streaming": "纨绔青年",
-        "BV418_streaming": "直播一姐",
-        "BV142_streaming": "沉稳解说男",
-        "BV143_streaming": "潇洒青年",
-        "BV056_streaming": "阳光男声",
-        "BV005_streaming": "活泼女声",
-        "BV064_streaming": "小萝莉",
-        "BV051_streaming": "奶气萌娃",
-        "BV063_streaming": "动漫海绵",
-        "BV417_streaming": "动漫海星",
-        "BV050_streaming": "动漫小新",
-        "BV061_streaming": "天才童声",
-        "BV401_streaming": "促销男声",
-        "BV402_streaming": "促销女声",
-        "BV006_streaming": "磁性男声",
-        "BV011_streaming": "新闻女声",
-        "BV012_streaming": "新闻男声",
-        "BV034_streaming": "知性姐姐-双语",
-        "BV033_streaming": "温柔小哥",
-        "BV511_streaming": "慵懒女声-Ava",
-        "BV505_streaming": "议论女声-Alicia",
-        "BV138_streaming": "情感女声-Lawrence",
-        "BV027_streaming": "美式女声-Amelia",
-        "BV502_streaming": "讲述女声-Amanda",
-        "BV503_streaming": "活力女声-Ariana",
-        "BV504_streaming": "活力男声-Jackson",
-        "BV421_streaming": "天才少女",
-        "BV702_streaming": "Stefan",
-        "BV506_streaming": "天真萌娃-Lily",
-        "BV040_streaming": "亲切女声-Anna",
-        "BV516_streaming": "澳洲男声-Henry",
-        "BV520_streaming": "元气少女",
-        "BV521_streaming": "萌系少女",
-        "BV522_streaming": "气质女声",
-        "BV524_streaming": "日语男声",
-        "BV531_streaming": "活力男声Carlos（巴西地区）",
-        "BV530_streaming": "活力女声（巴西地区）",
-        "BV065_streaming": "气质御姐（墨西哥地区）",
-        "BV021_streaming": "东北老铁",
-        "BV020_streaming": "东北丫头",
-        "BV704_streaming": "方言灿灿",
-        "BV210_streaming": "西安佟掌柜",
-        "BV217_streaming": "沪上阿姐",
-        "BV213_streaming": "广西表哥",
-        "BV025_streaming": "甜美台妹",
-        "BV227_streaming": "台普男声",
-        "BV026_streaming": "港剧男神",
-        "BV424_streaming": "广东女仔",
-        "BV212_streaming": "相声演员",
-        "BV019_streaming": "重庆小伙",
-        "BV221_streaming": "四川甜妹儿",
-        "BV423_streaming": "重庆幺妹儿",
-        "BV214_streaming": "乡村企业家",
-        "BV226_streaming": "湖南妹坨",
-        "BV216_streaming": "长沙靓女"
-    }
-    
-    saved_voice_type = config.ui.get("doubaotts_voice_type", "BV700_streaming")
+            # 通用场景
+            "zh_female_vv_uranus_bigtts": "Vivi 2.0 (多语种)",
+            "zh_female_xiaohe_uranus_bigtts": "小何 2.0",
+            "zh_male_m191_uranus_bigtts": "云舟 2.0",
+            "zh_male_taocheng_uranus_bigtts": "小天 2.0",
+            "zh_male_liufei_uranus_bigtts": "刘飞 2.0",
+            "zh_female_sophie_uranus_bigtts": "魅力苏菲 2.0",
+            "zh_female_qingxinnvsheng_uranus_bigtts": "清新女声 2.0",
+            "zh_female_cancan_uranus_bigtts": "知性灿灿 2.0",
+            "zh_female_sajiaoxuemei_uranus_bigtts": "撒娇学妹 2.0",
+            "zh_female_tianmeixiaoyuan_uranus_bigtts": "甜美小源 2.0",
+            "zh_female_tianmeitaozi_uranus_bigtts": "甜美桃子 2.0",
+            "zh_female_shuangkuaisisi_uranus_bigtts": "爽快思思 2.0",
+            "zh_female_peiqi_uranus_bigtts": "佩奇猪 2.0 (抖音同款)",
+            "zh_female_linjianvhai_uranus_bigtts": "邻家女孩 2.0",
+            "zh_male_shaonianzixin_uranus_bigtts": "少年梓辛/Brayan 2.0",
+            "zh_male_sunwukong_uranus_bigtts": "猴哥 2.0",
+            "zh_female_yingyujiaoxue_uranus_bigtts": "Tina 老师 2.0 (中英)",
+            "zh_female_kefunvsheng_uranus_bigtts": "暖阳女声 2.0",
+            "zh_female_xiaoxue_uranus_bigtts": "儿童绘本 2.0",
+            "zh_male_dayi_uranus_bigtts": "大壹 2.0",
+            "zh_female_mizai_uranus_bigtts": "黑猫侦探社咪仔 2.0",
+            "zh_female_jitangnv_uranus_bigtts": "鸡汤女 2.0",
+            "zh_female_meilinvyou_uranus_bigtts": "魅力女友 2.0",
+            "zh_female_liuchangnv_uranus_bigtts": "流畅女声 2.0",
+            "zh_male_ruyayichen_uranus_bigtts": "儒雅逸辰 2.0",
+            "en_male_tim_uranus_bigtts": "Tim (美式英语)",
+            "en_female_dacey_uranus_bigtts": "Dacey (美式英语)",
+            "en_female_stokie_uranus_bigtts": "Stokie (美式英语)",
+            "zh_female_wenroumama_uranus_bigtts": "温柔妈妈 2.0",
+            "zh_male_jieshuoxiaoming_uranus_bigtts": "解说小明 2.0",
+            "zh_female_tvbnv_uranus_bigtts": "TVB 女声 2.0",
+            "zh_male_yizhipiannan_uranus_bigtts": "译制片男 2.0",
+            "zh_female_qiaopinv_uranus_bigtts": "俏皮女声 2.0",
+            "zh_female_zhishuaiyingzi_uranus_bigtts": "直率英子 2.0 (抖音同款)",
+            "zh_male_linjiananhai_uranus_bigtts": "邻家男孩 2.0",
+            "zh_male_silang_uranus_bigtts": "四郎 2.0 (抖音同款)",
+            "zh_male_ruyaqingnian_uranus_bigtts": "儒雅青年 2.0 (番茄小说同款)",
+            "zh_male_qingcang_uranus_bigtts": "擎苍 2.0 (抖音同款)",
+            "zh_male_xionger_uranus_bigtts": "熊二 2.0 (抖音同款)",
+            "zh_female_yingtaowanzi_uranus_bigtts": "樱桃丸子 2.0 (抖音同款)",
+            "zh_male_wennuanahu_uranus_bigtts": "温暖阿虎/Alvin 2.0",
+            "zh_male_naiqimengwa_uranus_bigtts": "奶气萌娃 2.0 (剪映同款)",
+            "zh_female_popo_uranus_bigtts": "婆婆 2.0 (抖音同款)",
+            "zh_female_gaolengyujie_uranus_bigtts": "高冷御姐 2.0",
+            "zh_male_aojiaobazong_uranus_bigtts": "傲娇霸总 2.0",
+            "zh_male_lanyinmianbao_uranus_bigtts": "懒音绵宝 2.0",
+            "zh_male_fanjuanqingnian_uranus_bigtts": "反卷青年 2.0",
+            "zh_female_wenroushunv_uranus_bigtts": "温柔淑女 2.0 (番茄小说同款)",
+            "zh_female_gufengshaoyu_uranus_bigtts": "古风少御 2.0",
+            "zh_male_huolixiaoge_uranus_bigtts": "活力小哥 2.0",
+            "zh_male_baqiqingshu_uranus_bigtts": "霸气青叔 2.0 (番茄小说同款)",
+            "zh_male_xuanyijieshuo_uranus_bigtts": "悬疑解说 2.0 (抖音同款)",
+            "zh_female_mengyatou_uranus_bigtts": "萌丫头/Cutey 2.0",
+            "zh_female_tiexinnvsheng_uranus_bigtts": "贴心女声/Candy 2.0",
+            "zh_female_jitangmei_uranus_bigtts": "鸡汤妹妹/Hope 2.0 (抖音同款)",
+            "zh_male_cixingjieshuonan_uranus_bigtts": "磁性解说男声/Morgan 2.0 (抖音同款)",
+            "zh_male_liangsangmengzai_uranus_bigtts": "亮嗓萌仔 2.0",
+            "zh_female_kailangjiejie_uranus_bigtts": "开朗姐姐 2.0",
+            "zh_male_gaolengchenwen_uranus_bigtts": "高冷沉稳 2.0 (猫箱同款)",
+            "zh_male_shenyeboke_uranus_bigtts": "深夜播客 2.0",
+            "zh_male_lubanqihao_uranus_bigtts": "鲁班七号 2.0 (抖音同款)",
+            "zh_female_jiaochuannv_uranus_bigtts": "娇喘女声 2.0 (抖音同款)",
+            "zh_female_linxiao_uranus_bigtts": "林潇 2.0 (抖音同款)",
+            "zh_female_lingling_uranus_bigtts": "玲玲姐姐 2.0 (抖音同款)",
+            "zh_female_chunribu_uranus_bigtts": "春日部姐姐 2.0 (抖音同款)",
+            "zh_male_tangseng_uranus_bigtts": "唐僧 2.0 (抖音同款)",
+            "zh_male_zhuangzhou_uranus_bigtts": "庄周 2.0 (抖音同款)",
+            "zh_male_kailangdidi_uranus_bigtts": "开朗弟弟 2.0 (抖音同款)",
+            "zh_male_zhubajie_uranus_bigtts": "猪八戒 2.0 (豆包同款)",
+            "zh_female_ganmaodianyin_uranus_bigtts": "感冒电音姐姐 2.0 (抖音同款)",
+            "zh_female_chanmeinv_uranus_bigtts": "谄媚女声 2.0 (抖音同款)",
+            "zh_female_nvleishen_uranus_bigtts": "女雷神 2.0 (豆包同款)",
+            "zh_female_qinqienv_uranus_bigtts": "亲切女声 2.0 (豆包同款)",
+            "zh_male_kuailexiaodong_uranus_bigtts": "快乐小东 2.0 (豆包同款)",
+            "zh_male_kailangxuezhang_uranus_bigtts": "开朗学长 2.0 (豆包同款)",
+            "zh_male_youyoujunzi_uranus_bigtts": "悠悠君子 2.0 (豆包同款)",
+            "zh_female_wenjingmaomao_uranus_bigtts": "文静毛毛 2.0 (豆包同款)",
+            "zh_female_zhixingnv_uranus_bigtts": "知性女声 2.0",
+            "zh_male_qingshuangnanda_uranus_bigtts": "清爽男大 2.0 (豆包同款)",
+            "zh_male_yuanboxiaoshu_uranus_bigtts": "渊博小叔 2.0",
+            "zh_male_yangguangqingnian_uranus_bigtts": "阳光青年 2.0",
+            "zh_female_qingchezizi_uranus_bigtts": "清澈梓梓 2.0",
+            "zh_female_tianmeiyueyue_uranus_bigtts": "甜美悦悦 2.0",
+            "zh_female_xinlingjitang_uranus_bigtts": "心灵鸡汤 2.0",
+            "zh_male_wenrouxiaoge_uranus_bigtts": "温柔小哥 2.0",
+            "zh_female_roumeinvyou_uranus_bigtts": "柔美女友 2.0",
+            "zh_male_dongfanghaoran_uranus_bigtts": "东方浩然 2.0",
+            "zh_female_wenrouxiaoya_uranus_bigtts": "温柔小雅 2.0",
+            "zh_male_tiancaitongsheng_uranus_bigtts": "天才童声 2.0",
+            "zh_female_wuzetian_uranus_bigtts": "武则天 2.0 (剪映同款)",
+            "zh_female_gujie_uranus_bigtts": "顾姐 2.0 (抖音同款)",
+            "zh_male_guanggaojieshuo_uranus_bigtts": "广告解说 2.0 (剪映同款)",
+            "zh_female_shaoergushi_uranus_bigtts": "少儿故事 2.0",
+            # ICL 角色扮演 - 女声
+            "ICL_uranus_zh_female_aojiaonvyou_tob": "傲娇女友 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_aomanjiaosheng_tob": "傲慢娇声 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_xiemeinvwang_tob": "邪魅女王 2.0",
+            "ICL_uranus_zh_female_bingjiaojiejie_tob": "病娇姐姐 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_bingjiaomengmei_tob": "病娇萌妹 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_bingruoshaonv_tob": "病弱少女 2.0",
+            "ICL_uranus_zh_female_chengshuwenrou_tob": "成熟温柔 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_chengshujiejie_tob": "成熟姐姐 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_chunzhenshaonv_tob": "纯真少女 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_chunchenvsheng_tob": "纯澈女生 2.0",
+            "ICL_uranus_zh_female_wumeikeren_tob": "妩媚可人 2.0",
+            "ICL_uranus_zh_female_guaiqiaokeer_tob": "乖巧可儿 2.0",
+            "ICL_uranus_zh_female_heainainai_tob": "和蔼奶奶 2.0",
+            "ICL_uranus_zh_female_huopodiaoman_tob": "活泼刁蛮 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_huoponvhai_tob": "活泼女孩 2.0",
+            "ICL_uranus_zh_female_jiaohannvwang_tob": "娇憨女王 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_jiaoruoluoli_tob": "娇弱萝莉 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_jiaxiaozi_tob": "假小子 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_jinglingxiangdao_tob": "精灵向导 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_kailangtingting_tob": "开朗婷婷 2.0",
+            "ICL_uranus_zh_female_kaixinxiaohong_tob": "开心小鸿 2.0",
+            "ICL_uranus_zh_female_keainvsheng_tob": "可爱女生 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_lingdongxinxin_tob": "灵动欣欣 2.0",
+            "ICL_uranus_zh_female_linjuayi_tob": "邻居阿姨 2.0",
+            "ICL_uranus_zh_female_tianmeijiaoqiao_tob": "甜美娇俏 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_qinglenggaoya_tob": "清冷高雅 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_lixingyuanzi_tob": "理性圆子 2.0",
+            "ICL_uranus_zh_female_xingganmeihuo_tob": "性感魅惑 2.0",
+            "ICL_uranus_zh_female_nuanxinqianqian_tob": "暖心茜茜 2.0",
+            "ICL_uranus_zh_female_nuanxinxuejie_tob": "暖心学姐 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_qingtianmeimei_tob": "清甜莓莓 2.0",
+            "ICL_uranus_zh_female_qingtiantaotao_tob": "清甜桃桃 2.0",
+            "ICL_uranus_zh_female_qingxixiaoxue_tob": "清晰小雪 2.0",
+            "ICL_uranus_zh_female_qingxinshaonv_tob": "倾心少女 2.0",
+            "ICL_uranus_zh_female_rouguhunshi_tob": "柔骨魂师 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_ruanmengtangtang_tob": "软萌糖糖 2.0",
+            "ICL_uranus_zh_female_ruanmengtuanzi_tob": "软萌团子 2.0",
+            "ICL_uranus_zh_female_tianmeihuopo_tob": "甜美活泼 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_tianmeixiaoju_tob": "甜美小橘 2.0",
+            "ICL_uranus_zh_female_tianmeixiaoyu_tob": "甜美小雨 2.0",
+            "ICL_uranus_zh_female_tiaopigongzhu_tob": "调皮公主 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_tiexinnvyou_tob": "贴心女友 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_wenrounvshen_tob": "温柔女神 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_wenrouwenya_tob": "温柔文雅 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_zhixinjiejie_tob": "知心姐姐 2.0",
+            "ICL_uranus_zh_female_wumeiyujie_tob": "妩媚御姐 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_yuanqitianmei_tob": "元气甜妹 2.0",
+            "ICL_uranus_zh_female_xiemeiyujie_tob": "邪魅御姐 2.0",
+            "ICL_uranus_zh_female_xingganyujie_tob": "性感御姐 2.0 (豆包同款)",
+            "ICL_uranus_zh_female_xiuliqianqian_tob": "秀丽倩倩 2.0",
+            "ICL_uranus_zh_female_tiexinguimi_tob": "贴心闺蜜 2.0",
+            "ICL_uranus_zh_female_tiexinmeimei_tob": "贴心妹妹 2.0",
+            "ICL_uranus_zh_female_wenroubaiyueguang_tob": "温柔白月光 2.0",
+            "ICL_uranus_zh_female_chuliannvyou_tob": "初恋女友 2.0",
+            "ICL_uranus_zh_female_zhixingwenwan_tob": "知性温婉 2.0 (猫箱同款)",
+            "ICL_uranus_zh_female_wenwanshanshan_tob": "温婉珊珊 2.0",
+            "ICL_uranus_zh_female_reqingaina_tob": "热情艾娜 2.0",
+            "ICL_uranus_zh_female_qingyingduoduo_tob": "轻盈朵朵 2.0",
+            # ICL 角色扮演 - 男声
+            "ICL_uranus_zh_male_aoqilingren_tob": "傲气凌人 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_anrenqinzhu_tob": "黯刃秦主 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_aojiaogongzi_tob": "傲娇公子 2.0",
+            "ICL_uranus_zh_male_aojiaojingying_tob": "傲娇精英 2.0",
+            "ICL_uranus_zh_male_aomanqingnian_tob": "傲慢青年 2.0",
+            "ICL_uranus_zh_male_aomanshaoye_tob": "傲慢少爷 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_zhenbiandiyu_tob": "枕边低语 2.0 (抖音同款)",
+            "ICL_uranus_zh_male_badaoshaoye_tob": "霸道少爷 2.0",
+            "ICL_uranus_zh_male_badaozongcai_tob": "霸道总裁 2.0",
+            "ICL_uranus_zh_male_bingjiaobailian_tob": "病娇白莲 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_bingjiaodidi_tob": "病娇弟弟 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_bingjiaogege_tob": "病娇哥哥 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_bingjiaonanyou_tob": "病娇男友 2.0",
+            "ICL_uranus_zh_male_bingjiaoshaonian_tob": "病娇少年 2.0",
+            "ICL_uranus_zh_male_bingruogongzi_tob": "病弱公子 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_bingruoshaonian_tob": "病弱少年 2.0",
+            "ICL_uranus_zh_male_bujiqingnian_tob": "不羁青年 2.0",
+            "ICL_uranus_zh_male_chunhoudiyin_tob": "醇厚低音 2.0",
+            "ICL_uranus_zh_male_paoxiaoxiaoge_tob": "咆哮小哥 2.0",
+            "ICL_uranus_zh_male_yangyang_tob": "炀炀 2.0",
+            "ICL_uranus_zh_male_chanruoshaoye_tob": "孱弱少爷 2.0",
+            "ICL_uranus_zh_male_chengshuzongcai_tob": "成熟总裁 2.0",
+            "ICL_uranus_zh_male_chenwenmingzai_tob": "沉稳明仔 2.0",
+            "ICL_uranus_zh_male_qingyisugan_tob": "清逸苏感 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_chunzhenxuedi_tob": "纯真学弟 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_cixingnansang_tob": "磁性男嗓 2.0",
+            "ICL_uranus_zh_male_cujingnansheng_tob": "醋精男生 2.0",
+            "ICL_uranus_zh_male_cujingnanyou_tob": "醋精男友 2.0",
+            "ICL_uranus_zh_male_diyinchenyu_tob": "低音沉郁 2.0",
+            "ICL_uranus_zh_male_fengfashaonian_tob": "风发少年 2.0",
+            "ICL_uranus_zh_male_ruyagongzi_tob": "儒雅公子 2.0",
+            "ICL_uranus_zh_male_fuheigongzi_tob": "腹黑公子 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_ganjingshaonian_tob": "干净少年 2.0",
+            "ICL_uranus_zh_male_gaolengzongcai_tob": "高冷总裁 2.0",
+            "ICL_uranus_zh_male_guaogongzi_tob": "孤傲公子 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_gugaogongzi_tob": "孤高公子 2.0",
+            "ICL_uranus_zh_male_guiyishenmi_tob": "诡异神秘 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_guzhibingjiao_tob": "固执病娇 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_hanhoudunshi_tob": "憨厚敦实 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_huoliqingnian_tob": "活力青年 2.0",
+            "ICL_uranus_zh_male_huoponanyou_tob": "活泼男友 2.0",
+            "ICL_uranus_zh_male_huoposhuanglang_tob": "活泼爽朗 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_huzishushu_tob": "胡子叔叔 2.0",
+            "ICL_uranus_zh_male_jijiazhineng_tob": "机甲智能 2.0",
+            "ICL_uranus_zh_male_jingyingqingnian_tob": "精英青年 2.0",
+            "ICL_uranus_zh_male_junyigongzi_tob": "俊逸公子 2.0",
+            "ICL_uranus_zh_male_kailangqingkuai_tob": "开朗轻快 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_kailangqingnian_tob": "开朗青年 2.0",
+            "ICL_uranus_zh_male_lanyincaohunshi_tob": "蓝银草魂师 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_lengaozongcai_tob": "冷傲总裁 2.0",
+            "ICL_uranus_zh_male_lengdanshuli_tob": "冷淡疏离 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_lengjungaozhi_tob": "冷峻高智 2.0",
+            "ICL_uranus_zh_male_lengjunshangsi_tob": "冷峻上司 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_lengkugege_tob": "冷酷哥哥 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_lenglianxiongzhang_tob": "冷脸兄长 2.0",
+            "ICL_uranus_zh_male_lenglianxueba_tob": "冷脸学霸 2.0",
+            "ICL_uranus_zh_male_lengmonanyou_tob": "冷漠男友 2.0",
+            "ICL_uranus_zh_male_lengmoxiongzhang_tob": "冷漠兄长 2.0",
+            "ICL_uranus_zh_male_lingyunqingnian_tob": "凌云青年 2.0",
+            "ICL_uranus_zh_male_qinglengjingui_tob": "清冷矜贵 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_lvchaxiaoge_tob": "绿茶小哥 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_mengdongqingnian_tob": "懵懂青年 2.0",
+            "ICL_uranus_zh_male_menyoupingxiaoge_tob": "闷油瓶小哥 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_xiaozhangxiaoge_tob": "嚣张小哥 2.0",
+            "ICL_uranus_zh_male_nianrennanyou_tob": "粘人男友 2.0",
+            "ICL_uranus_zh_male_neiliancaijun_tob": "内敛才俊 2.0",
+            "ICL_uranus_zh_male_nuanxintitie_tob": "暖心体贴 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_pianpiangongzi_tob": "翩翩公子 2.0",
+            "ICL_uranus_zh_male_chenwenyouya_tob": "沉稳优雅 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_qingsexiaosheng_tob": "青涩小生 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_qingseqingnian_tob": "青涩青年 2.0",
+            "ICL_uranus_zh_male_qingshuangshaonian_tob": "清爽少年 2.0",
+            "ICL_uranus_zh_male_qingxinbobo_tob": "清新波波 2.0",
+            "ICL_uranus_zh_male_qinqieqingnian_tob": "亲切青年 2.0",
+            "ICL_uranus_zh_male_qinqiexiaozhuo_tob": "亲切小卓 2.0",
+            "ICL_uranus_zh_male_qinglangwenrun_tob": "清朗温润 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_rexueshaonian_tob": "热血少年 2.0",
+            "ICL_uranus_zh_male_ruyacaijun_tob": "儒雅才俊 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_ruyajunzi_tob": "儒雅君子 2.0",
+            "ICL_uranus_zh_male_ruyazongcai_tob": "儒雅总裁 2.0",
+            "ICL_uranus_zh_male_sajiaonansheng_tob": "撒娇男生 2.0",
+            "ICL_uranus_zh_male_sajiaonanyou_tob": "撒娇男友 2.0",
+            "ICL_uranus_zh_male_sajiaonianren_tob": "撒娇粘人 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_satuoqingnian_tob": "洒脱青年 2.0",
+            "ICL_uranus_zh_male_shaonianjiangjun_tob": "少年将军 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_shenchenzongcai_tob": "深沉总裁 2.0",
+            "ICL_uranus_zh_male_jilingxiaohuo_tob": "机灵小伙 2.0",
+            "ICL_uranus_zh_male_shenmifashi_tob": "神秘法师 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_shuaizhenxiaohuo_tob": "率真小伙 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_shuanglangxiaoyang_tob": "爽朗小阳 2.0",
+            "ICL_uranus_zh_male_dichenqianquan_tob": "低沉缱绻 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_siwenqingnian_tob": "斯文青年 2.0",
+            "ICL_uranus_zh_male_tianxinanyou_tob": "甜系男友 2.0",
+            "ICL_uranus_zh_male_tiexinnanyou_tob": "贴心男友 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_wenrounantongzhuo_tob": "温柔男同桌 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_wenrounanyou_tob": "温柔男友 2.0",
+            "ICL_uranus_zh_male_wenrouxuezhang_tob": "温柔学长 2.0",
+            "ICL_uranus_zh_male_wenrunxuezhe_tob": "温润学者 2.0",
+            "ICL_uranus_zh_male_wenshunshaonian_tob": "温顺少年 2.0",
+            "ICL_uranus_zh_male_guayanxiaoge_tob": "寡言小哥 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_xiaohouye_tob": "小侯爷 2.0",
+            "ICL_uranus_zh_male_naiqixiaosheng_tob": "奶气小生 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_xiaosasuixing_tob": "潇洒随性 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_wenrouneilian_tob": "温柔内敛 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_xuebanantongzhuo_tob": "学霸男同桌 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_xuebatongzhuo_tob": "学霸同桌 2.0",
+            "ICL_uranus_zh_male_yangguangyangyang_tob": "阳光洋洋 2.0",
+            "ICL_uranus_zh_male_wennuanshaonian_tob": "温暖少年 2.0",
+            "ICL_uranus_zh_male_yiqishaonian_tob": "意气少年 2.0",
+            "ICL_uranus_zh_male_younidashu_tob": "油腻大叔 2.0",
+            "ICL_uranus_zh_male_youmodaye_tob": "幽默大爷 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_youmoshushu_tob": "幽默叔叔 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_youroubangzhu_tob": "优柔帮主 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_yourougongzi_tob": "优柔公子 2.0 (豆包同款)",
+            "ICL_uranus_zh_male_yuanqishaonian_tob": "元气少年 2.0",
+            "ICL_uranus_zh_male_zhangjianjunzi_tob": "仗剑君子 2.0",
+            "ICL_uranus_zh_male_zhangjianxiake_tob": "仗剑侠客 2.0",
+            "ICL_uranus_zh_male_zhengzhiqingnian_tob": "正直青年 2.0 (猫箱同款)",
+            "ICL_uranus_zh_male_zhishuaiqingnian_tob": "直率青年 2.0",
+            "ICL_uranus_zh_male_zhongerqingnian_tob": "中二青年 2.0",
+            "ICL_uranus_zh_male_zifuqingnian_tob": "自负青年 2.0",
+            "ICL_uranus_zh_male_zixinqingnian_tob": "自信青年 2.0",
+            "ICL_uranus_zh_male_tiancaitongzhuo_tob": "天才同桌 2.0",
+            "ICL_uranus_zh_male_qingxinmumu_tob": "清新沐沐 2.0",
+            "ICL_uranus_zh_male_shuanglangshaonian_tob": "爽朗少年 2.0"
+        }
+
+    saved_voice_type = config.doubaotts.get("speaker", "zh_female_vv_uranus_bigtts")
     if saved_voice_type not in voice_options:
         voice_options[saved_voice_type] = f"{tr('Custom Voice')} ({saved_voice_type})"
-    
+
     selected_voice_display = st.selectbox(
         tr("Voice Selection"),
         options=list(voice_options.values()),
         index=list(voice_options.keys()).index(saved_voice_type) if saved_voice_type in voice_options else 0,
         help=tr("Select Doubao TTS Voice")
     )
-    
-    # 获取实际的音色ID
+
+    # 获取实际的音色 ID
     voice_type = list(voice_options.keys())[
         list(voice_options.values()).index(selected_voice_display)
     ]
-    
+
+    # 音频格式选择
+    audio_format_options = {
+        "pcm": "PCM (推荐用于流式)",
+        "mp3": "MP3",
+        "ogg_opus": "OGG Opus",
+        "wav": "WAV"
+    }
+    saved_audio_format = config.doubaotts.get("audio_format", "mp3")
+    if saved_audio_format not in audio_format_options:
+        saved_audio_format = "pcm"
+
+    audio_format = st.selectbox(
+        tr("Audio Format"),
+        options=list(audio_format_options.keys()),
+        format_func=lambda x: audio_format_options[x],
+        index=list(audio_format_options.keys()).index(saved_audio_format),
+        help=tr("Doubao Audio Format Help")
+    )
+
     # 高级参数折叠面板
     with st.expander(tr("Advanced Parameters"), expanded=False):
         col1, col2 = st.columns(2)
-        
+
         with col1:
             # 语速调节
             voice_rate = st.slider(
                 tr("Voice Rate"),
-                min_value=0.2,
-                max_value=3.0,
+                min_value=0.5,
+                max_value=2.0,
                 value=config.ui.get("doubaotts_rate", 1.0),
                 step=0.1,
-                help=tr("Voice Rate Help 0.2-3.0")
+                help=tr("Voice Rate Help 0.5-2.0")
             )
-            
+
             # 音量调节
             voice_volume = st.slider(
                 tr("Voice Volume"),
@@ -1640,7 +1831,7 @@ def render_doubaotts_settings(tr):
                 step=0.1,
                 help=tr("Voice Volume Help 0.1-2.0")
             )
-        
+
         with col2:
             # 音高调节
             voice_pitch = st.slider(
@@ -1651,59 +1842,80 @@ def render_doubaotts_settings(tr):
                 step=0.1,
                 help=tr("Voice Pitch Help 0.5-1.5")
             )
-            
+
             # 句尾静音时长
+            silence_duration_value = config.doubaotts.get("silence_duration", 0.0)
+            # 确保类型一致（转换为 float）
+            silence_duration_value = float(silence_duration_value) if silence_duration_value is not None else 0.0
+
             silence_duration = st.slider(
                 tr("Sentence Silence Duration"),
                 min_value=0.0,
-                max_value=2.0,
-                value=config.doubaotts.get("silence_duration", 0.125),
-                step=0.05,
+                max_value=30.0,
+                value=silence_duration_value,
+                step=0.5,
                 help=tr("Sentence Silence Duration Help")
             )
-    
-    # 显示API Key申请流程
+
+        # 可选功能
+        st.subheader(tr("Optional Features"))
+        disable_markdown_filter = st.checkbox(
+            tr("Disable Markdown Filter"),
+            value=config.doubaotts.get("disable_markdown_filter", False),
+            help=tr("Disable Markdown Filter Help")
+        )
+        disable_emoji_filter = st.checkbox(
+            tr("Disable Emoji Filter"),
+            value=config.doubaotts.get("disable_emoji_filter", False),
+            help=tr("Disable Emoji Filter Help")
+        )
+        enable_latex_tn = st.checkbox(
+            tr("Enable Latex TN"),
+            value=config.doubaotts.get("enable_latex_tn", False),
+            help=tr("Enable Latex TN Help")
+        )
+        require_usage_tokens_return = st.checkbox(
+            tr("Require Usage Tokens Return"),
+            value=config.doubaotts.get("require_usage_tokens_return", False),
+            help=tr("Require Usage Tokens Return Help")
+        )
+
+    # 显示 API Key 申请流程
     with st.expander(tr("Doubao TTS API Key Application Process"), expanded=False):
         st.write(f"**{tr('Application Steps')}:**")
-        st.write(tr("Doubao TTS Step 1"))
-        st.write(tr("Doubao TTS Step 2"))
-        st.write(tr("Doubao TTS Step 3"))
-        st.write(tr("Doubao TTS Step 4"))
-        st.write(tr("Doubao TTS Step 5"))
-        st.write(tr("Doubao TTS Step 6"))
-        
+        st.write("1. " + tr("Doubao TTS Step 1: Open Volcengine Console"))
+        st.write("2. " + tr("Doubao TTS Step 2: Create API Key"))
+        st.write("3. " + tr("Doubao TTS Step 3: Access Voice Synthesis Service"))
+        st.write("4. " + tr("Doubao TTS Step 4: Get Speaker ID from Console"))
+        st.write("5. " + tr("Doubao TTS Step 5: Fill in API Key and Resource ID"))
+        st.write("6. " + tr("Doubao TTS Step 6: Test and Use"))
+
         st.write("")
         st.info(tr("Doubao TTS Fill Credentials Notice"))
-    
+
     # 保存配置
-    config.doubaotts["ak"] = ak
-    config.doubaotts["sk"] = sk
-    config.doubaotts["appid"] = appid
-    config.doubaotts["token"] = token
-    config.doubaotts["cluster"] = cluster
+    config.doubaotts["api_key"] = api_key
+    config.doubaotts["resource_id"] = resource_id
+    config.doubaotts["speaker"] = voice_type
+    config.doubaotts["audio_format"] = audio_format
     config.doubaotts["volume"] = voice_volume
     config.doubaotts["pitch"] = voice_pitch
     config.doubaotts["silence_duration"] = silence_duration
+    config.doubaotts["disable_markdown_filter"] = disable_markdown_filter
+    config.doubaotts["disable_emoji_filter"] = disable_emoji_filter
+    config.doubaotts["enable_latex_tn"] = enable_latex_tn
+    config.doubaotts["require_usage_tokens_return"] = require_usage_tokens_return
     config.ui["doubaotts_voice_type"] = voice_type
     config.ui["doubaotts_rate"] = voice_rate
-    config.ui["voice_name"] = voice_type # 兼容性
-    st.session_state['voice_rate'] = voice_rate # 确保语速参数被保存到session state
+    config.ui["voice_name"] = voice_type  # 兼容性
+    st.session_state['voice_rate'] = voice_rate
 
     # 显示配置状态
-    if ak and sk and appid and token:
-        st.success(tr("Doubao TTS configured"))
+    if api_key:
+        st.success(tr("Doubao TTS 2.0 configured"))
     else:
-        missing = []
-        if not ak:
-            missing.append("Access Key")
-        if not sk:
-            missing.append("Secret Key")
-        if not appid:
-            missing.append("AppID")
-        if not token:
-            missing.append("Token")
-        if missing:
-            st.warning(tr("Please configure missing fields").format(fields=', '.join(missing)))
+        st.warning(tr("Please configure API Key"))
+
 
 
 def render_voice_preview_new(tr, selected_engine):
@@ -1765,7 +1977,7 @@ def render_voice_preview_new(tr, selected_engine):
             voice_rate = config.omnivoice.get("speed", 1.0)
             voice_pitch = 1.0
         elif selected_engine == "doubaotts":
-            voice_type = config.ui.get("doubaotts_voice_type", "BV700_streaming")
+            voice_type = config.ui.get("doubaotts_voice_type", "zh_female_vv_uranus_bigtts")
             voice_name = voice_type
             voice_rate = config.ui.get("doubaotts_rate", 1.0)
             voice_pitch = 1.0  # 豆包语音 TTS 不支持音调调节

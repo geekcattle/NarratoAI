@@ -399,7 +399,7 @@ def get_voice_name_for_tts_engine(tts_engine: str) -> str:
             return f"{config.OMNIVOICE_VOICE_PREFIX}{reference_audio}"
         return f"{config.OMNIVOICE_VOICE_PREFIX}{mode}"
     if tts_engine == 'doubaotts':
-        return config.ui.get('doubaotts_voice_type', 'BV700_streaming')
+        return config.ui.get('doubaotts_voice_type', 'zh_female_vv_uranus_bigtts')
     if tts_engine == 'soulvoice':
         voice_uri = config.soulvoice.get('voice_uri', '')
         if voice_uri and not voice_uri.startswith(('soulvoice:', 'speech:')):

@@ -1146,76 +1146,113 @@ def should_use_azure_speech_services(voice_name: str) -> bool:
 
 def doubaotts_tts(text: str, voice_name: str, voice_file: str, speed: float = 1.0) -> Union[SubMaker, None]:
     """
-    使用豆包语音 TTS 生成语音
+    使用豆包语音 TTS 2.0 生成语音（单向流式接口）
+    API 文档：https://www.volcengine.com/docs/6561/1330194
     """
     # 读取配置
     doubaotts_cfg = getattr(config, "doubaotts", {}) or {}
-    appid = doubaotts_cfg.get("appid", "")
-    token = doubaotts_cfg.get("token", "")
-    ak = doubaotts_cfg.get("ak", "")
-    sk = doubaotts_cfg.get("sk", "")
-    cluster = doubaotts_cfg.get("cluster", "volcano_tts")
-    
-    if not appid or not token:
-        logger.error("豆包语音 TTS 配置未完成")
+    api_key = doubaotts_cfg.get("api_key", "")
+    resource_id = doubaotts_cfg.get("resource_id", "seed-tts-2.0")
+    speaker = doubaotts_cfg.get("speaker", "zh_female_cancan_uranus_bigtts")
+    audio_format = doubaotts_cfg.get("audio_format", "mp3")
+
+    if not api_key:
+        logger.error("豆包语音 TTS 2.0 配置未完成：缺少 API Key")
         return None
 
+    # 音色与资源 ID 映射关系
+    # seed-icl-2.0: ICL 角色扮演音色（以 ICL_ 开头的）
+    # seed-tts-2.0: 标准音色（包括 zh_female_vv_uranus_bigtts 等 2.0 音色）
+    if speaker.startswith("ICL_"):
+        resource_id = "seed-icl-2.0"
+        logger.info(f"使用 ICL 音色，自动切换资源 ID 为：seed-icl-2.0")
+
     # 准备参数
-    voice_type = voice_name
-    safe_speed = float(max(0.2, min(3.0, speed)))
+    safe_speed = float(max(0.5, min(2.0, speed)))
     text = text.strip()
 
     # 构建请求参数
-    import uuid
-    reqid = str(uuid.uuid4())
-    
+    request_id = str(uuid.uuid4())
+
     # 获取高级参数
     volume = doubaotts_cfg.get("volume", 1.0)
     pitch = doubaotts_cfg.get("pitch", 1.0)
-    silence_duration = doubaotts_cfg.get("silence_duration", 0.125)
-    
-    payload = {
-        "app": {
-            "appid": appid,
-            "token": token,
-            "cluster": cluster
-        },
-        "user": {
-            "uid": "NarratoAI"
-        },
-        "audio": {
-            "voice_type": voice_type,
-            "encoding": "mp3",
-            "rate": 24000,
-            "speed_ratio": safe_speed,
-            "volume_ratio": float(volume),
-            "pitch_ratio": float(pitch)
-        },
-        "request": {
-            "reqid": reqid,
+    silence_duration = doubaotts_cfg.get("silence_duration", 0)
+    speech_rate = doubaotts_cfg.get("speech_rate", 0)
+    loudness_rate = doubaotts_cfg.get("loudness_rate", 0)
+
+    # 构建请求体 (v3 API 格式)
+    # 注意：req_params 需要嵌套在请求体中
+    request_body = {
+        "req_params": {
             "text": text,
-            "text_type": "plain",
-            "operation": "query"
+            "speaker": speaker,
+            "audio_params": {
+                "format": audio_format,
+                "sample_rate": 24000,
+            }
         }
     }
-    
-    # 如果设置了句尾静音时长，添加到请求参数中
-    if silence_duration > 0:
-        payload["audio"]["silence_duration"] = float(silence_duration)
 
-    # API 地址
-    url = "https://openspeech.bytedance.com/api/v1/tts"
-    
-    # 构建请求头（使用Bearer Token认证）
+    # 语速参数转换：原 speed(0.5-2.0) → speech_rate(-50 到 100，100 代表 2.0 倍速)
+    # speech_rate = (speed - 1) * 100, 范围 [-50, 100]
+    if speech_rate == 0:
+        speech_rate = int((safe_speed - 1.0) * 100)
+        speech_rate = max(-50, min(100, speech_rate))
+    request_body["req_params"]["speech_rate"] = speech_rate
+
+    # 音量参数转换：loudness_rate(-50 到 100，100 代表 2.0 倍音量)
+    if loudness_rate == 0 and volume != 1.0:
+        loudness_rate = int((volume - 1.0) * 100)
+        loudness_rate = max(-50, min(100, loudness_rate))
+        request_body["req_params"]["loudness_rate"] = loudness_rate
+
+    # 音调参数：post_process.pitch(-12 到 12)
+    if pitch != 1.0:
+        pitch_value = int((pitch - 1.0) * 12)
+        pitch_value = max(-12, min(12, pitch_value))
+        request_body["req_params"]["post_process"] = {"pitch": pitch_value}
+
+    # 句尾静音时长 (ms)
+    if silence_duration > 0:
+        request_body["req_params"]["silence_duration"] = int(silence_duration * 1000)
+
+    # 其他可选参数
+    disable_markdown_filter = doubaotts_cfg.get("disable_markdown_filter", False)
+    disable_emoji_filter = doubaotts_cfg.get("disable_emoji_filter", False)
+    enable_latex_tn = doubaotts_cfg.get("enable_latex_tn", False)
+
+    if disable_markdown_filter:
+        request_body["req_params"]["disable_markdown_filter"] = True
+    if disable_emoji_filter:
+        request_body["req_params"]["disable_emoji_filter"] = True
+    if enable_latex_tn:
+        request_body["req_params"]["enable_latex_tn"] = True
+        # 启用 Latex 时需要关闭 markdown 过滤
+        request_body["req_params"]["disable_markdown_filter"] = True
+
+    # API 地址 (v3 单向流式接口)
+    url = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+
+    # 构建请求头 (v3 API 格式)
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer;{token}"
+        "X-Api-Key": api_key,
+        "X-Api-Resource-Id": resource_id,
+        "X-Api-Request-Id": request_id,
+        "Accept": "*/*",
     }
+
+    # 如果设置了 require_usage_tokens_return，返回计费字符数
+    req_usage_tokens = doubaotts_cfg.get("require_usage_tokens_return", False)
+    if req_usage_tokens:
+        headers["X-Control-Require-Usage-Tokens-Return"] = "*"
 
     for i in range(3):
         try:
-            logger.info(f"=== 豆包语音 TTS 请求参数 (第 {i+1} 次调用) ===")
-            
+            logger.info(f"=== 豆包语音 TTS 2.0 请求参数 (第 {i+1} 次调用) ===")
+            logger.info(f"Request-ID: {request_id}, Resource-ID: {resource_id}, Speaker: {speaker}")
+
             # 发送请求
             import requests
             # 处理代理设置
@@ -1225,42 +1262,85 @@ def doubaotts_tts(text: str, voice_name: str, voice_file: str, speed: float = 1.
                 proxy_url = config.proxy.get("https", config.proxy.get("http", ""))
                 if proxy_url:
                     proxies = {"https": proxy_url, "http": proxy_url}
-            response = requests.post(url, json=payload, headers=headers, proxies=proxies, timeout=60)
-            
+
+            response = requests.post(
+                url,
+                json=request_body,
+                headers=headers,
+                proxies=proxies,
+                timeout=60
+                # 注意：不使用 stream=True，因为豆包 TTS 2.0 返回的是 JSON 响应
+            )
+
             if response.status_code == 200:
-                result = response.json()
-                if result.get("code") == 3000:
-                    # 成功
-                    audio_data = result.get("data", "")
-                    if audio_data:
-                        # 解码 base64 音频数据
-                        import base64
-                        audio_bytes = base64.b64decode(audio_data)
-                        
-                        # 写入文件
-                        with open(voice_file, "wb") as f:
-                            f.write(audio_bytes)
-                        
-                        logger.success(f"豆包语音 TTS 合成成功: {voice_file}")
-                        
-                        # 创建 SubMaker 对象（简化版，不包含时间戳）
-                        sub_maker = new_sub_maker()
-                        return sub_maker
-                    else:
-                        logger.error("豆包语音 TTS 响应中无音频数据")
+                # 检查响应类型和内容
+                content_type = response.headers.get("Content-Type", "")
+                audio_bytes = b""
+
+                # 尝试解析 JSON 响应（使用正则表达式处理大 JSON）
+                try:
+                    import re
+                    import base64
+
+                    response_text = response.text
+                    # 检查 code 字段
+                    code_match = re.search(r'"code":(\d+)', response_text)
+                    code = int(code_match.group(1)) if code_match else None
+
+                    if code is not None and code != 0:
+                        # 错误响应
+                        message_match = re.search(r'"message":"([^"]*)"', response_text)
+                        message = message_match.group(1) if message_match else "未知错误"
+                        logger.error(f"豆包 TTS 2.0 API 返回错误：code={code}, message={message}")
+                        if i < 2:
+                            time.sleep(1)
+                        continue
+                    elif code == 0:
+                        # 成功响应，提取 base64 音频数据
+                        data_match = re.search(r'"data":"([A-Za-z0-9+/=]+)"', response_text)
+                        if data_match:
+                            audio_data = data_match.group(1)
+                            audio_bytes = base64.b64decode(audio_data)
+                            logger.info(f"解码后的音频大小：{len(audio_bytes)} 字节")
+                        else:
+                            logger.warning("未找到 data 字段，尝试作为二进制流处理")
+                except Exception as e:
+                    logger.warning(f"JSON 解析失败 ({e})，尝试作为二进制流处理")
+
+                # 如果没有解析出音频数据，尝试作为二进制流处理
+                if not audio_bytes:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            audio_bytes += chunk
+                    logger.info(f"二进制流接收的音频大小：{len(audio_bytes)} 字节")
+
+                if audio_bytes:
+                    # 写入文件
+                    with open(voice_file, "wb") as f:
+                        f.write(audio_bytes)
+
+                    logger.success(f"豆包语音 TTS 2.0 合成成功：{voice_file}, 大小：{len(audio_bytes)} 字节")
+
+                    # 创建 SubMaker 对象（简化版，不包含时间戳）
+                    sub_maker = new_sub_maker()
+                    # 估算音频时长（基于文本长度）
+                    estimated_duration_ms = max(800, int(len(text) * 200))
+                    add_subtitle_event(sub_maker, 0, estimated_duration_ms * 10000, text)
+                    return sub_maker
                 else:
-                    logger.error(f"豆包语音 TTS 失败: {result.get('message', '未知错误')}")
+                    logger.error(f"豆包语音 TTS 2.0 响应中无音频数据")
             else:
-                logger.error(f"豆包语音 TTS API 请求失败: {response.status_code}, {response.text}")
-                
+                logger.error(f"豆包语音 TTS 2.0 API 请求失败：{response.status_code}, {response.text}")
+
             if i < 2:
                 time.sleep(1)
         except Exception as e:
-            logger.error(f"豆包语音 TTS 错误: {str(e)}")
+            logger.error(f"豆包语音 TTS 2.0 错误：{str(e)}")
             if i < 2:
                 time.sleep(3)
-    
+
     return None
+
 
 
 def tts(

@@ -220,21 +220,52 @@
     preprocess_prompt = true
 
 [doubaotts]
-    # 豆包语音 TTS 配置
+    # 豆包语音 TTS 2.0 配置（单向流式接口）
+    # API 文档：https://www.volcengine.com/docs/6561/1330194
+    # 
     # 申请流程：
-    # 1. 打开 https://console.volcengine.com/iam/keymanage 新建 Access Key 和 Secret Key
+    # 1. 打开 https://console.volcengine.com/iam/keymanage 新建 API Key
     # 2. 打开 https://www.volcengine.com/product/voice-tech 点击立即使用
-    # 3. 在 API 服务中心找到音频生成下面的语音合成，获取 APPID 和 Token
-    ak = ""
-    sk = ""
-    appid = ""
-    token = ""
-    cluster = "volcano_tts"
+    # 3. 在控制台 > 音色库 获取音色 ID (speaker)
+    # 
+    # 模型版本 (resource_id) 说明：
+    #   - seed-tts-2.0: 豆包语音合成大模型 2.0，支持豆包语音合成模型 2.0 音色
+    #   - seed-icl-2.0: 豆包声音复刻大模型 2.0，支持使用声音复刻接口克隆的音色
+    
+    # API Key (必选)
+    api_key = ""
+    
+    # 模型版本 (必选，默认值)
+    resource_id = "seed-tts-2.0"
+
+    # 音色 ID (必选)，可从控制台 > 音色库获取
+    # 常用音色示例：
+    #   - zh_female_vv_uranus_bigtts: Vivi 2.0 (多语种，支持中文、日文、印尼语、西班牙语)
+    #   - zh_female_cancan_uranus_bigtts: 知性灿灿 2.0
+    #   - zh_male_qingcang_uranus_bigtts: 擎苍 2.0
+    #   - zh_male_jieshuoxiaoming_uranus_bigtts: 解说小明 2.0
+    #   完整音色列表见：https://www.volcengine.com/docs/6561/1257544
+    #
+    # 注意：ICL 角色扮演音色（ICL_ 开头）需要将 resource_id 改为 seed-icl-2.0
+    speaker = "zh_female_vv_uranus_bigtts"
+    
+    # 音频格式：pcm / mp3 / ogg_opus / wav
+    # 流式场景推荐使用 pcm
+    audio_format = "mp3"
     
     # 高级参数
-    volume = 1.0
-    pitch = 1.0
-    silence_duration = 0.125
+    volume = 1.0        # 音量，范围 0.1-2.0
+    pitch = 1.0         # 音调，范围 0.5-1.5
+    silence_duration = 0    # 句尾静音时长 (秒)，范围 0-30
+    speech_rate = 0     # 语速，范围 -50 到 100 (0 代表正常，100 代表 2.0 倍速)
+    loudness_rate = 0   # 音量调节，范围 -50 到 100 (0 代表正常，100 代表 2.0 倍音量)
+    
+    # 可选功能
+    disable_markdown_filter = false  # 是否关闭 Markdown 解析过滤
+    disable_emoji_filter = false     # 是否关闭 Emoji 过滤
+    enable_latex_tn = false          # 是否启用 Latex 文本朗读能力
+    require_usage_tokens_return = false  # 是否返回计费字符数
+
 
 [ui]
     # TTS引擎选择 (indextts, indextts2, omnivoice, edge_tts, qwen3_tts, tencent_tts, doubaotts, azure_speech)
@@ -253,7 +284,7 @@
     azure_pitch = 0
     
     # 豆包语音 TTS 配置
-    doubaotts_voice_type = "BV700_V2_streaming"
+    doubaotts_voice_type = "zh_female_vv_uranus_bigtts"
     doubaotts_rate = 1.0
 
     # 字幕遮罩配置：用于在烧录新字幕前遮盖原视频自带字幕
