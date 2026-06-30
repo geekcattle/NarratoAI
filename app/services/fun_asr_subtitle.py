@@ -534,6 +534,57 @@ def write_srt_file(srt_content: str, subtitle_file: str = "") -> str:
     return subtitle_file
 
 
+
+def get_local_resource_subtitle_files() -> list[dict]:
+    """从本地资源目录获取字幕文件列表"""
+    subtitle_files = []
+    from app.config import config
+    resource_subtitle_dir = os.path.join(config.root_dir, "resource", "srt")
+
+    if not os.path.exists(resource_subtitle_dir):
+        return subtitle_files
+
+    for filename in os.listdir(resource_subtitle_dir):
+        if filename.lower().endswith(".srt"):
+            file_path = os.path.join(resource_subtitle_dir, filename)
+            if os.path.isfile(file_path):
+                subtitle_files.append({
+                    "filename": filename,
+                    "path": file_path,
+                    "name": os.path.splitext(filename)[0]
+                })
+
+    subtitle_files.sort(key=lambda x: x["name"].lower())
+    return subtitle_files
+
+
+def copy_resource_srt_to_subtitle_dir(resource_srt_path: str, subtitle_file: str = "") -> str:
+    """
+    从 resource/srt 目录复制字幕文件到字幕目录
+
+    Args:
+        resource_srt_path: resource/srt 目录中的字幕文件路径
+        subtitle_file: 目标字幕文件路径（可选）
+
+    Returns:
+        复制后的字幕文件路径
+    """
+    if not os.path.isfile(resource_srt_path):
+        raise FunAsrError(f"资源目录中的字幕文件不存在：{resource_srt_path}")
+
+    if not subtitle_file:
+        subtitle_file = os.path.join(utils.subtitle_dir(), f"fun_asr_resource_{int(time.time())}.srt")
+
+    parent = os.path.dirname(subtitle_file)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    if os.path.abspath(resource_srt_path) != os.path.abspath(subtitle_file):
+        shutil.copyfile(resource_srt_path, subtitle_file)
+
+    return subtitle_file
+
+
 def copy_srt_file(source_file: str, subtitle_file: str = "") -> str:
     """Copy an existing SRT file into NarratoAI's subtitle directory."""
     if not os.path.isfile(source_file):

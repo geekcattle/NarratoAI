@@ -889,6 +889,28 @@ def short_drama_summary(tr):
     return summary_narration_panel(tr, SUMMARY_MODE_CONFIGS[MODE_SHORT_SUMMARY])
 
 
+def get_local_subtitle_files(subtitle_dir):
+    """从本地资源目录获取字幕文件列表"""
+    subtitle_files = []
+
+    if not os.path.exists(subtitle_dir):
+        return subtitle_files
+
+    for filename in os.listdir(subtitle_dir):
+        if filename.lower().endswith(".srt"):
+            file_path = os.path.join(subtitle_dir, filename)
+            if os.path.isfile(file_path):
+                subtitle_files.append({
+                    "filename": filename,
+                    "path": file_path,
+                    "name": os.path.splitext(filename)[0]
+                })
+
+    # 按文件名排序
+    subtitle_files.sort(key=lambda x: x["name"].lower())
+    return subtitle_files
+
+
 def render_subtitle_preview(tr):
     """渲染可折叠的当前字幕预览；没有字幕时提示用户先转写或上传。"""
     subtitle_paths = _selected_subtitle_paths()
@@ -1164,10 +1186,11 @@ def render_fun_asr_transcription(tr):
         tr("Local FunASR-Pack API"): "local",
         tr("Local FireRedASR API"): "firered",
         tr("Ali Bailian Online Fun-ASR"): "bailian",
+        tr("从本地资源选择"): "resource",
         tr("上传字幕文件"): "upload",
     }
     saved_backend = str(config.fun_asr.get("backend", "")).strip().lower()
-    if saved_backend not in {"local", "firered", "bailian", "upload"}:
+    if saved_backend not in {"local", "firered", "bailian", "resource", "upload"}:
         saved_backend = (
             "bailian"
             if config.fun_asr.get("api_key") and not config.fun_asr.get("api_url")
@@ -1196,7 +1219,35 @@ def render_fun_asr_transcription(tr):
             )
             backend = backend_options[backend_label]
 
-            if backend == "upload":
+            if backend == "resource":
+                # 从本地资源目录选择字幕文件
+                local_subtitle_dir = os.path.join(config.root_dir, "resource", "srt")
+                subtitle_files = get_local_subtitle_files(local_subtitle_dir)
+
+                if not subtitle_files:
+                    st.warning(tr("本地资源目录未找到字幕文件"))
+                    st.info(f"请将字幕文件放入：`{local_subtitle_dir}`")
+                else:
+                    # 显示字幕文件选择器
+                    subtitle_file_names = [f["name"] for f in subtitle_files]
+                    selected_index = st.selectbox(
+                        tr("选择字幕文件"),
+                        options=range(len(subtitle_file_names)),
+                        format_func=lambda x: subtitle_file_names[x],
+                        key="resource_subtitle_select",
+                    )
+
+                    selected_file = subtitle_files[selected_index]
+                    st.caption(f"**{tr('文件路径')}:** {selected_file['path']}")
+
+                    # 确认选择按钮
+                    if st.button(tr("使用此字幕文件"), key="use_resource_subtitle_btn", type="primary"):
+                        # 直接保存路径到 session state
+                        st.session_state['subtitle_path'] = selected_file['path']
+                        st.session_state['subtitle_file_processed'] = True
+                        st.success(f"{tr('已选择字幕文件')}: {selected_file['name']}")
+                        st.rerun()
+            elif backend == "upload":
                 render_subtitle_upload(tr)
             elif backend == "local":
                 st.caption(tr("Local Fun-ASR upload caption"))
@@ -1444,18 +1495,22 @@ def render_fun_asr_transcription(tr):
         clear_fun_asr_subtitle_state()
         st.error(tr("Please enter local FireRedASR API URL"))
         return
-    missing_paths = [path for path in media_paths if not os.path.exists(path)]
-    if not media_paths or missing_paths:
-        clear_fun_asr_subtitle_state()
-        if missing_paths:
-            st.error(
-                tr("Selected video files do not exist").format(
-                    files=_format_file_list_for_display(missing_paths)
+    if backend == "resource":
+        # 本地资源选择模式，不需要媒体文件
+        pass
+    else:
+        missing_paths = [path for path in media_paths if not os.path.exists(path)]
+        if not media_paths or missing_paths:
+            clear_fun_asr_subtitle_state()
+            if missing_paths:
+                st.error(
+                    tr("Selected video files do not exist").format(
+                        files=_format_file_list_for_display(missing_paths)
+                    )
                 )
-            )
-        else:
-            st.error(tr("Selected video file does not exist"))
-        return
+            else:
+                st.error(tr("Selected video file does not exist"))
+            return
 
     try:
         clear_fun_asr_subtitle_state()
@@ -1469,7 +1524,12 @@ def render_fun_asr_transcription(tr):
         config.fun_asr["model"] = "fun-asr"
         config.save_config()
 
-        if backend == "local":
+        if backend == "resource":
+            # 本地资源选择模式，直接使用已选择的字幕文件
+            st.session_state['subtitle_file_processed'] = True
+            st.success(tr("已使用本地资源字幕文件"))
+            return
+        elif backend == "local":
             spinner_text = tr("Transcribing with local FunASR-Pack...")
         elif backend == "firered":
             spinner_text = tr("Transcribing with local FireRedASR...")
