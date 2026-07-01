@@ -1263,56 +1263,74 @@ def doubaotts_tts(text: str, voice_name: str, voice_file: str, speed: float = 1.
                 if proxy_url:
                     proxies = {"https": proxy_url, "http": proxy_url}
 
+            # 使用 stream=True 接收流式响应
             response = requests.post(
                 url,
                 json=request_body,
                 headers=headers,
                 proxies=proxies,
-                timeout=60
-                # 注意：不使用 stream=True，因为豆包 TTS 2.0 返回的是 JSON 响应
+                timeout=60,
+                stream=True
             )
 
             if response.status_code == 200:
-                # 检查响应类型和内容
-                content_type = response.headers.get("Content-Type", "")
+                import base64
+                import json as json_lib
+
                 audio_bytes = b""
+                base64_chunks = []
+                has_error = False
 
-                # 尝试解析 JSON 响应（使用正则表达式处理大 JSON）
-                try:
-                    import re
-                    import base64
-
-                    response_text = response.text
-                    # 检查 code 字段
-                    code_match = re.search(r'"code":(\d+)', response_text)
-                    code = int(code_match.group(1)) if code_match else None
-
-                    if code is not None and code != 0:
-                        # 错误响应
-                        message_match = re.search(r'"message":"([^"]*)"', response_text)
-                        message = message_match.group(1) if message_match else "未知错误"
-                        logger.error(f"豆包 TTS 2.0 API 返回错误：code={code}, message={message}")
-                        if i < 2:
-                            time.sleep(1)
+                # 逐行解析 NDJSON 响应
+                for line in response.iter_lines(decode_unicode=True):
+                    if not line:
                         continue
-                    elif code == 0:
-                        # 成功响应，提取 base64 音频数据
-                        data_match = re.search(r'"data":"([A-Za-z0-9+/=]+)"', response_text)
-                        if data_match:
-                            audio_data = data_match.group(1)
-                            audio_bytes = base64.b64decode(audio_data)
-                            logger.info(f"解码后的音频大小：{len(audio_bytes)} 字节")
-                        else:
-                            logger.warning("未找到 data 字段，尝试作为二进制流处理")
-                except Exception as e:
-                    logger.warning(f"JSON 解析失败 ({e})，尝试作为二进制流处理")
 
-                # 如果没有解析出音频数据，尝试作为二进制流处理
-                if not audio_bytes:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            audio_bytes += chunk
-                    logger.info(f"二进制流接收的音频大小：{len(audio_bytes)} 字节")
+                    try:
+                        line = line.strip()
+                        json_data = json_lib.loads(line)
+
+                        # 检查错误码
+                        code = json_data.get("code")
+                        message = json_data.get("message", "")
+
+                        # 豆包 TTS 2.0 响应码说明：
+                        # code=0: 正常音频数据块
+                        # code=20000000: 流式传输结束标记
+                        # code=其他：错误响应
+
+                        if code == 20000000:
+                            # 流式传输结束
+                            logger.info(f"豆包 TTS 2.0 流式传输结束：message={message}")
+                            break
+                        elif code and code != 0:
+                            # 错误响应
+                            logger.error(f"豆包 TTS 2.0 API 返回错误：code={code}, message={message}")
+                            has_error = True
+                            break
+                        elif code == 0:
+                            # 成功响应，累积 base64 数据
+                            data = json_data.get("data")
+                            if data:
+                                base64_chunks.append(data)
+
+                            # 检查是否有 sentence 信息
+                            if "sentence" in json_data:
+                                sentence_info = json_data.get("sentence", {})
+                                if sentence_info.get("text"):
+                                    logger.info(f"收到句子：{sentence_info.get('text')}")
+
+                    except json_lib.JSONDecodeError:
+                        logger.warning(f"JSON 解析失败：{line[:100]}")
+                        continue
+
+                if not has_error and base64_chunks:
+                    # 合并所有 base64 块并解码
+                    full_base64 = "".join(base64_chunks)
+                    audio_bytes = base64.b64decode(full_base64)
+                    logger.info(f"解码后的音频大小：{len(audio_bytes)} 字节")
+                elif not has_error:
+                    logger.warning("未收到任何音频数据")
 
                 if audio_bytes:
                     # 写入文件
