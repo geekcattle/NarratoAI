@@ -14,12 +14,13 @@ def render_video_config(tr, params):
     """渲染视频配置"""
     # 视频比例
     video_aspect_ratios = [
-        (tr("Portrait"), VideoAspect.portrait.value),
         (tr("Landscape"), VideoAspect.landscape.value),
+        (tr("Portrait"), VideoAspect.portrait.value),
     ]
     selected_index = st.selectbox(
         tr("Video Ratio"),
         options=range(len(video_aspect_ratios)),
+        index=0,  # 默认选择横屏
         format_func=lambda x: video_aspect_ratios[x][0],
     )
     params.video_aspect = VideoAspect(video_aspect_ratios[selected_index][1])
