@@ -2135,7 +2135,7 @@ def render_voice_preview(tr, voice_name):
 def render_bgm_settings(tr):
     """渲染背景音乐设置"""
     saved_bgm_file = st.session_state.get('bgm_file', '')
-    saved_bgm_source = st.session_state.get('bgm_source', 'resource')
+    saved_bgm_source = st.session_state.get('bgm_source', 'none')
     if st.session_state.get('bgm_type') == "":
         saved_bgm_source = "none"
 
@@ -2145,7 +2145,7 @@ def render_bgm_settings(tr):
         tr("No Background Music"): "none",
     }
     if saved_bgm_source not in bgm_source_options.values():
-        saved_bgm_source = "resource"
+        saved_bgm_source = "none"
 
     default_bgm_source_label = next(
         label
