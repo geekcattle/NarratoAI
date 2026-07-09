@@ -240,6 +240,7 @@ def _build_tavily_context(
 def _build_plot_analysis_input(
     subtitle_content: str,
     short_name: str = "",
+    story_summary: str = "",
     enable_web_search: bool = False,
     tr=lambda key: key,
     search_keywords: str = SHORT_DRAMA_SEARCH_KEYWORDS,
@@ -247,7 +248,19 @@ def _build_plot_analysis_input(
     web_search_context_description: str = "短剧名称、人物关系、剧情背景和公开剧情梗概",
 ) -> str | None:
     subtitle_content = str(subtitle_content or "").strip()
+
+    # 构建故事概要部分（如果用户提供）
+    story_summary_section = ""
+    if story_summary and story_summary.strip():
+        story_summary_section = f"""# 故事概要（用户提供）
+{story_summary.strip()}
+
+"""
+
     if not enable_web_search:
+        if story_summary and story_summary.strip():
+            return f"""{story_summary_section}# 原始字幕
+{subtitle_content}"""
         return subtitle_content
 
     tavily_context = _build_tavily_context(
@@ -265,7 +278,7 @@ def _build_plot_analysis_input(
 
 {tavily_context}
 
-# 原始字幕
+{story_summary_section}# 原始字幕
 {subtitle_content}"""
 
 
@@ -275,6 +288,7 @@ def analyze_short_drama_plot(
     tr=lambda key: key,
     subtitle_content=None,
     short_name: str = "",
+    story_summary: str = "",
     enable_web_search: bool = False,
     video_paths=None,
     prompt_category: str = SHORT_DRAMA_PROMPT_CATEGORY,
@@ -282,7 +296,11 @@ def analyze_short_drama_plot(
     empty_title_message_key: str = "Please enter short drama name before web search",
     web_search_context_description: str = "短剧名称、人物关系、剧情背景和公开剧情梗概",
 ):
-    """仅执行短剧字幕剧情理解，返回可编辑的剧情分析文本。"""
+    """仅执行短剧字幕剧情理解，返回可编辑的剧情分析文本。
+
+    Args:
+        story_summary: 用户提供的故事概要，将融入剧情理解以提升效果
+    """
     subtitle_paths = _normalize_paths(subtitle_path)
     if not subtitle_paths:
         st.error(tr("Please generate or upload subtitles first"))
@@ -308,6 +326,7 @@ def analyze_short_drama_plot(
     plot_analysis_input = _build_plot_analysis_input(
         subtitle_content,
         short_name=short_name,
+        story_summary=story_summary,
         enable_web_search=enable_web_search,
         tr=tr,
         search_keywords=search_keywords,

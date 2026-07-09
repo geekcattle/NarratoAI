@@ -726,6 +726,9 @@
     "Enable Latex TN": "启用 Latex 文本朗读",
     "Enable Latex TN Help": "开启后支持 Latex 公式朗读",
     "Require Usage Tokens Return": "返回计费字符数",
-    "Require Usage Tokens Return Help": "开启后返回本次请求计费的字符数"
+    "Require Usage Tokens Return Help": "开启后返回本次请求计费的字符数",
+    "故事概要": "故事概要",
+    "请输入故事概要，有助于 AI 更好地理解剧情": "请输入故事概要，有助于 AI 更好地理解剧情",
+    "故事概要帮助：简要描述故事背景、主要人物关系和核心剧情，这将帮助 AI 更准确地理解剧情": "故事概要帮助：简要描述故事背景、主要人物关系和核心剧情，这将帮助 AI 更准确地理解剧情"
   }
 }

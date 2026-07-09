@@ -730,6 +730,9 @@
     "Enable Latex TN": "Enable Latex Text Normalization",
     "Enable Latex TN Help": "Support Latex formula reading when enabled",
     "Require Usage Tokens Return": "Require Usage Tokens Return",
-    "Require Usage Tokens Return Help": "Return billed character count when enabled"
+    "Require Usage Tokens Return Help": "Return billed character count when enabled",
+    "故事概要": "Story Summary",
+    "请输入故事概要，有助于 AI 更好地理解剧情": "Please enter story summary to help AI better understand the plot",
+    "故事概要帮助：简要描述故事背景、主要人物关系和核心剧情，这将帮助 AI 更准确地理解剧情": "Story Summary Help: Briefly describe the story background, main character relationships, and core plot to help AI understand the plot more accurately"
   }
 }

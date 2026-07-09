@@ -809,6 +809,17 @@ def summary_narration_panel(tr, summary_config):
         unsafe_allow_html=True,
     )
 
+    # 故事概要多行文本框
+    story_summary = st.text_area(
+        tr("故事概要"),
+        value=st.session_state.get('story_summary', ''),
+        height=120,
+        placeholder=tr("请输入故事概要，有助于 AI 更好地理解剧情"),
+        help=tr("故事概要帮助：简要描述故事背景、主要人物关系和核心剧情，这将帮助 AI 更准确地理解剧情"),
+        key="story_summary_input",
+    )
+    st.session_state['story_summary'] = story_summary
+
     name_cols = st.columns([3.4, 1.1, 2], vertical_alignment="bottom")
     with name_cols[0]:
         video_theme = st.text_input(tr(summary_config["title_label_key"]))
@@ -861,6 +872,7 @@ def summary_narration_panel(tr, summary_config):
                 tr,
                 subtitle_content=st.session_state.get('subtitle_content', ''),
                 short_name=video_theme,
+                story_summary=st.session_state.get('story_summary', ''),
                 enable_web_search=web_search_enabled,
                 video_paths=_selected_video_paths(),
                 prompt_category=summary_config["prompt_category"],
