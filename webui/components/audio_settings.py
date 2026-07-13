@@ -2157,8 +2157,8 @@ def render_bgm_settings(tr):
         "upload": "Upload Background Music",
         "none": "No Background Music",
     }
-    if saved_bgm_source not in bgm_source_options.values():
-        saved_bgm_source = "none"
+    if saved_bgm_source not in bgm_source_labels:
+        saved_bgm_source = "resource"
 
     default_bgm_source = _normalize_source_pills_value(
         st.session_state.get("bgm_source_selection", saved_bgm_source),
