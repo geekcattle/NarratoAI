@@ -3,22 +3,12 @@
 <h3 align="center">一站式 AI 影视解说+自动化剪辑工具🎬🎞️ </h3>
 
 <p align="center">
-  📖 <a href="README-en.md">English</a> | 简体中文 | <a href="https://www.narratoai.cn">☁️ <b>云端版入口 (NarratoAI.cn)</b></a>
+  📖 <a href="README-en.md">English</a> | 简体中文 | <a href="https://www.narratoai.co">☁️ <b>云端版入口 (NarratoAI.cn)</b></a>
 </p>
 
-<div align="center">
 <br>
 
-> **🔥 隆重推荐：VibeCut 的新范式 —— [speclip.com](https://speclip.com)**
->
-> **一个真正意义上的视频剪辑 Agent！像聊天(vibecoding)一样剪辑视频。**
-> **[👉 点击立即免费下载 Speclip](https://speclip.com)**
-
-</div>
-
-<br>
-
-NarratoAI 是一款自动化影视解说工具，基于 LLM 实现文案撰写、自动化视频剪辑、配音和字幕生成的一站式流程，助力高效内容创作。支持本地部署开源版及 [云端托管版](https://www.narratoai.cn)。
+NarratoAI 是一款自动化影视解说工具，基于 LLM 实现文案撰写、自动化视频剪辑、配音和字幕生成的一站式流程，助力高效内容创作。支持本地部署开源版及 [云端托管版](https://www.narratoai.co)。
 
 <br>
 
@@ -37,10 +27,9 @@ NarratoAI 是一款自动化影视解说工具，基于 LLM 实现文案撰写�
 ![](docs/index-zh.png)
 
 </div>
-## 许可证
-本项目仅供学习和研究使用，不得商用。如需商业授权，请联系作者。
 
 ## 最新资讯
+- 2026.07.02 发布新版本 0.8.4，升级豆包语音 TTS 新版 API Key 配置并保留旧版凭据兼容
 - 2026.06.10 发布新版本 0.8.1，**大版本更新**，优化多个核心流程
 - 2026.04.27 发布新版本 0.7.9，新增 **Fun-ASR一键转录字幕**
 - 2026.04.03 发布新版本 0.7.8，重构纪录片逐帧分析链路，统一共享服务并优化抽帧、缓存、视觉并发与文案生成流程
@@ -107,7 +96,33 @@ _**1. NarratoAI 是一款完全免费的软件，近期在社交媒体(抖音,B�
 
 ## 快速启动 🚀
 
-### 方式一：macos Docker 部署（macos 推荐）
+### 方式一：整合包（推荐）
+> 下载地址：[https://cutagent.online/](https://cutagent.online/)
+
+请下载与系统对应的整合包并完整解压；不要单独移动其中的 `NarratoAI`、`runtime` 或 `tools` 等目录。Windows 使用 x64 版本；macOS 使用 Apple Silicon（M1/M2/M3/M4）arm64 版本。
+
+#### Windows
+
+1. 打开解压后的 `NarratoAI-windows-x64` 目录。
+2. 先双击 `update-windows.bat` 更新项目，等待窗口提示更新完成。
+3. 再双击 `start.bat` 启动应用，并保持启动窗口打开。
+4. 在浏览器访问 `http://127.0.0.1:8501`。
+
+#### macOS（Apple Silicon）
+
+1. 打开解压后的 `NarratoAI-macos-arm64` 目录。
+2. 若系统阻止打开脚本，请在“终端”中执行（将路径替换为实际解压位置）：
+
+   ```bash
+   xattr -cr "/path/to/NarratoAI-macos-arm64"
+   chmod +x "/path/to/NarratoAI-macos-arm64/"*.command
+   ```
+
+3. 先双击 `update-macos.command` 更新项目，等待更新完成。
+4. 再双击 `start-macos.command` 启动应用，并保持终端窗口打开。
+5. 在浏览器访问 `http://127.0.0.1:8501`。
+
+### 方式二：macos Docker 部署（macos 推荐）
 ```bash
 # 1. 克隆项目
 git clone https://github.com/linyqh/NarratoAI.git
@@ -119,17 +134,14 @@ docker compose up -d
 # 3. 访问应用
 # 浏览器打开 http://localhost:8501
 ```
-### 方式二：整合包（Windows 推荐）
-> *关注微信公众号 **NarratoAI 助手** 右下角菜单栏获取下载链接*
-
 ### 方式三：本地运行
 ```bash
 # 1. 克隆项目
 git clone https://github.com/linyqh/NarratoAI.git
 cd NarratoAI
 
-# 2. 安装依赖
-pip install -r requirements.txt
+# 2. 使用 uv 安装依赖
+uv sync
 
 # 3. 复制配置文件
 cp config.example.toml config.toml
@@ -137,7 +149,7 @@ cp config.example.toml config.toml
 # 4. 编辑 config.toml，配置你的 API 密钥
 
 # 5. 启动应用
-streamlit run webui.py --server.maxUploadSize=2048
+uv run streamlit run webui.py --server.maxUploadSize=2048
 
 # 6. 访问应用
 # 浏览器打开 http://localhost:8501

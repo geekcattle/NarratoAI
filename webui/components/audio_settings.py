@@ -9,7 +9,7 @@ from app.models.schema import AudioVolumeDefaults
 from app.utils import utils
 
 
-INDEXTTS_REFERENCE_AUDIO_SOURCE_DIR = "/Users/viccy/Downloads/tts-mp3-clone/mp3"
+INDEXTTS_REFERENCE_AUDIO_SOURCE_DIR = utils.resource_dir("tts_reference_audio")
 INDEXTTS_REFERENCE_AUDIO_COPY_SUBDIR = "indextts_refs"
 INDEXTTS_REFERENCE_AUDIO_MAP = [
     ("yingshijieshuo-zh-male.mp3", "影视解说", "Film Narration"),
@@ -36,7 +36,7 @@ INDEXTTS_REFERENCE_AUDIO_MAP = [
     ("sarah-en-female.mp3", "莎拉", "Sarah"),
 ]
 INDEXTTS_REFERENCE_AUDIO_EXTENSIONS = (".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg")
-BGM_RESOURCE_DIR = "/Users/viccy/Downloads/tts-mp3-clone/bgms-safe"
+BGM_RESOURCE_DIR = utils.resource_dir("bgm")
 BGM_TRACKS_JSON = os.path.join(BGM_RESOURCE_DIR, "tracks.json")
 BGM_UPLOAD_SUBDIR = "uploaded_bgms"
 BGM_AUDIO_EXTENSIONS = (".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg")
@@ -45,6 +45,18 @@ LOCAL_TTS_ENGINES = {
     config.INDEXTTS2_ENGINE,
     config.OMNIVOICE_ENGINE,
 }
+
+
+def _normalize_source_pills_value(value, option_labels, default_value, tr=lambda key: key):
+    if value in option_labels:
+        return value
+
+    label_values = {}
+    for option_value, label_key in option_labels.items():
+        label_values[label_key] = option_value
+        label_values[tr(label_key)] = option_value
+
+    return label_values.get(str(value), default_value)
 
 
 def get_soulvoice_voices():
@@ -380,34 +392,35 @@ def render_reference_audio_preview_button(reference_audio, key, tr, preview_stat
 def render_indextts_reference_audio_selector(tr, tts_config, key_prefix):
     """渲染 IndexTTS 系列共用的参考音频选择器。"""
     saved_reference_audio = tts_config.get("reference_audio", "")
-    reference_audio_source_options = {
-        tr("Select from Resource Directory"): "resource",
-        tr("Upload Reference Audio"): "upload",
+    reference_audio_source_labels = {
+        "resource": "Select from Resource Directory",
+        "upload": "Upload Reference Audio",
     }
-    reference_audio_source_labels = list(reference_audio_source_options.keys())
     saved_reference_audio_source = tts_config.get("reference_audio_source", "resource")
-    if saved_reference_audio_source not in reference_audio_source_options.values():
+    if saved_reference_audio_source not in reference_audio_source_labels:
         saved_reference_audio_source = "resource"
-    default_reference_audio_source_label = next(
-        label
-        for label, source_value in reference_audio_source_options.items()
-        if source_value == saved_reference_audio_source
+    reference_audio_source_key = f"{key_prefix}_reference_audio_source_selection"
+    default_reference_audio_source = _normalize_source_pills_value(
+        st.session_state.get(reference_audio_source_key, saved_reference_audio_source),
+        reference_audio_source_labels,
+        saved_reference_audio_source,
+        tr,
     )
+    st.session_state[reference_audio_source_key] = default_reference_audio_source
 
     st.markdown(f"**{tr('Reference Audio Path')}**")
-    reference_audio_source_label = st.pills(
+    reference_audio_source = st.pills(
         tr("Reference Audio Source"),
-        options=reference_audio_source_labels,
+        options=list(reference_audio_source_labels.keys()),
         selection_mode="single",
-        default=default_reference_audio_source_label,
-        key=f"{key_prefix}_reference_audio_source_selection",
+        key=reference_audio_source_key,
+        format_func=lambda source: tr(reference_audio_source_labels[source]),
         help=tr("Reference Audio Source Help"),
         label_visibility="collapsed",
         width="stretch",
     )
-    if not reference_audio_source_label:
-        reference_audio_source_label = default_reference_audio_source_label
-    reference_audio_source = reference_audio_source_options[reference_audio_source_label]
+    if not reference_audio_source:
+        reference_audio_source = default_reference_audio_source
 
     reference_audio = saved_reference_audio
     preview_state_key = f"{key_prefix}_reference_audio_preview_path"
@@ -2139,35 +2152,35 @@ def render_bgm_settings(tr):
     if st.session_state.get('bgm_type') == "":
         saved_bgm_source = "none"
 
-    bgm_source_options = {
-        tr("Select from Resource Directory"): "resource",
-        tr("Upload Background Music"): "upload",
-        tr("No Background Music"): "none",
+    bgm_source_labels = {
+        "resource": "Select from Resource Directory",
+        "upload": "Upload Background Music",
+        "none": "No Background Music",
     }
     if saved_bgm_source not in bgm_source_options.values():
         saved_bgm_source = "none"
 
-    default_bgm_source_label = next(
-        label
-        for label, source_value in bgm_source_options.items()
-        if source_value == saved_bgm_source
+    default_bgm_source = _normalize_source_pills_value(
+        st.session_state.get("bgm_source_selection", saved_bgm_source),
+        bgm_source_labels,
+        saved_bgm_source,
+        tr,
     )
+    st.session_state["bgm_source_selection"] = default_bgm_source
 
     st.markdown(f"**{tr('Background Music')}**")
-    bgm_source_label = st.pills(
+    bgm_source = st.pills(
         tr("Background Music Source"),
-        options=list(bgm_source_options.keys()),
+        options=list(bgm_source_labels.keys()),
         selection_mode="single",
-        default=default_bgm_source_label,
         key="bgm_source_selection",
+        format_func=lambda source: tr(bgm_source_labels[source]),
         help=tr("Background Music Source Help"),
         label_visibility="collapsed",
         width="stretch",
     )
-    if not bgm_source_label:
-        bgm_source_label = default_bgm_source_label
-
-    bgm_source = bgm_source_options[bgm_source_label]
+    if not bgm_source:
+        bgm_source = default_bgm_source
     bgm_file = ""
     bgm_name = ""
 
