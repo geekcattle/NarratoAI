@@ -3,7 +3,7 @@
 <h3 align="center">一站式 AI 影视解说+自动化剪辑工具🎬🎞️ </h3>
 
 <p align="center">
-  📖 <a href="README-en.md">English</a> | 简体中文 | <a href="https://www.narratoai.co">☁️ <b>云端版入口 (NarratoAI.cn)</b></a>
+  📖 <a href="README-en.md">English</a> | 简体中文 | <a href="https://www.narratoai.co">☁️ <b>云端版入口 (NarratoAI.co)</b></a>
 </p>
 
 <br>
@@ -29,6 +29,8 @@ NarratoAI 是一款自动化影视解说工具，基于 LLM 实现文案撰写�
 </div>
 
 ## 最新资讯
+- 2026.07.16 发布新版本 0.8.6，新增可选的 **Sonilo AI 配乐**，支持 Apple Silicon 的 **IndexTTS-1.5 MLX**，更新 IndexTTS-2 MLX API 适配，并补充 OmniVoice 部署包下载入口
+- 2026.07.13 发布新版本 0.8.5，完善 `uv` + Python 3.12 本地运行流程，新增一键清理系统缓存和自定义 OpenAI 兼容 Base URL 的格式校验与 API Key 风险提示，并优化短脚本解析、字幕预览和音频设置的跨平台兼容性
 - 2026.07.02 发布新版本 0.8.4，升级豆包语音 TTS 新版 API Key 配置并保留旧版凭据兼容
 - 2026.06.10 发布新版本 0.8.1，**大版本更新**，优化多个核心流程
 - 2026.04.27 发布新版本 0.7.9，新增 **Fun-ASR一键转录字幕**
@@ -45,6 +47,17 @@ NarratoAI 是一款自动化影视解说工具，基于 LLM 实现文案撰写�
 - 2024.11.11 迁移开源社群，欢迎加入！ [加入官方社群](https://github.com/linyqh/NarratoAI/wiki)
 - 2024.11.10 发布官方文档，详情参见 [官方文档](https://p9mf6rjv3c.feishu.cn/wiki/SP8swLLZki5WRWkhuFvc2CyInDg)
 - 2024.11.10 发布新版本 v0.3.5；优化视频剪辑流程，
+
+### v0.8.6 更新亮点
+
+| 功能 | 说明 |
+| --- | --- |
+| Sonilo AI 配乐 | 在 WebUI 的背景音乐来源中选择“AI 生成配乐（Sonilo）”，即可根据画面内容和剪辑节奏生成配乐。该功能默认关闭，需自行配置 [Sonilo](https://sonilo.com) API Key；当前支持最长 6 分钟的视频，生成失败时会自动回退到随机背景音乐，不中断成片任务。 |
+| IndexTTS-1.5 macOS | 新增面向 Apple Silicon 的 MLX 本地语音克隆引擎，可上传或从资源目录选择参考音频。[下载部署包](https://cutagent.online/resources/indextts15-mlx-macos) |
+| IndexTTS-2 MLX | 更新 MLX Pack API 适配，支持参考音频、情感控制、随机种子和更完整的生成参数。[macOS 部署包](https://cutagent.online/resources/indextts2-full-macos)（Windows 版本待更新） |
+| OmniVoice | 补充 OmniVoice-Pack 部署包下载入口；该引擎支持自动音色、指令音色和参考音频克隆。[macOS 部署包](https://cutagent.online/resources/omnivoice-macos) / [Windows 部署包](https://cutagent.online/resources/omnivoice-windows) |
+
+> 使用 Sonilo AI 配乐时，合成完成且尚未添加背景音乐的视频会上传至 Sonilo API。请在启用前确认视频内容符合相关服务条款与隐私要求；生成音乐的授权和商用范围以 Sonilo 最新条款为准。
 
 ## 重磅福利 🎉
 
@@ -92,6 +105,7 @@ _**1. NarratoAI 是一款完全免费的软件，近期在社交媒体(抖音,B�
 - [ ] 主角人脸匹配
 - [ ] 支持根据口播，文案，视频素材自动匹配
 - [X] 支持更多 TTS 引擎
+- [X] 支持可选的 AI 自动配乐
 - [ ] ...
 
 ## 快速启动 🚀

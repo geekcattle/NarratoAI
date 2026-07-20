@@ -3,8 +3,9 @@ import os
 import shutil
 import json
 from uuid import uuid4
+from loguru import logger
 from app.config import config
-from app.services import voice
+from app.services import sonilo, voice
 from app.models.schema import AudioVolumeDefaults
 from app.utils import utils
 
@@ -42,8 +43,11 @@ BGM_UPLOAD_SUBDIR = "uploaded_bgms"
 BGM_AUDIO_EXTENSIONS = (".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg")
 LOCAL_TTS_ENGINES = {
     config.INDEXTTS_ENGINE,
+    config.INDEXTTS_MACOS_ENGINE,
     config.INDEXTTS2_ENGINE,
     config.OMNIVOICE_ENGINE,
+    config.VOXCPM_ENGINE,
+    config.VOXCPM2_ENGINE,
 }
 
 
@@ -74,8 +78,11 @@ def get_tts_engine_options(tr=lambda key: key):
     """获取TTS引擎选项"""
     engine_options = {
         config.INDEXTTS_ENGINE: config.INDEXTTS_DISPLAY_NAME,
+        config.INDEXTTS_MACOS_ENGINE: config.INDEXTTS_MACOS_DISPLAY_NAME,
         config.INDEXTTS2_ENGINE: config.INDEXTTS2_DISPLAY_NAME,
         config.OMNIVOICE_ENGINE: config.OMNIVOICE_DISPLAY_NAME,
+        config.VOXCPM_ENGINE: config.VOXCPM_DISPLAY_NAME,
+        config.VOXCPM2_ENGINE: config.VOXCPM2_DISPLAY_NAME,
         "edge_tts": "Edge TTS",
         "qwen3_tts": tr("Tongyi Qwen3 TTS"),
         "tencent_tts": tr("Tencent Cloud TTS"),
@@ -136,6 +143,12 @@ def get_tts_engine_descriptions(tr=lambda key: key):
             "use_case": tr("IndexTTS use case"),
             "registration": None
         },
+        config.INDEXTTS_MACOS_ENGINE: {
+            "title": config.INDEXTTS_MACOS_DISPLAY_NAME,
+            "features": tr("IndexTTS macOS features"),
+            "use_case": tr("IndexTTS macOS use case"),
+            "registration": None
+        },
         config.INDEXTTS2_ENGINE: {
             "title": config.INDEXTTS2_DISPLAY_NAME,
             "features": tr("IndexTTS2 features"),
@@ -147,6 +160,18 @@ def get_tts_engine_descriptions(tr=lambda key: key):
             "features": tr("OmniVoice features"),
             "use_case": tr("OmniVoice use case"),
             "registration": None
+        },
+        config.VOXCPM_ENGINE: {
+            "title": config.VOXCPM_DISPLAY_NAME,
+            "features": tr("VoxCPM features"),
+            "use_case": tr("VoxCPM use case"),
+            "registration": None,
+        },
+        config.VOXCPM2_ENGINE: {
+            "title": config.VOXCPM2_DISPLAY_NAME,
+            "features": tr("VoxCPM2 features"),
+            "use_case": tr("VoxCPM2 use case"),
+            "registration": None,
         },
         "doubaotts": {
             "title": tr("Doubao TTS"),
@@ -588,10 +613,16 @@ def render_tts_settings(tr):
         render_qwen3_tts_settings(tr)
     elif selected_engine == config.INDEXTTS_ENGINE:
         render_indextts_tts_settings(tr)
+    elif selected_engine == config.INDEXTTS_MACOS_ENGINE:
+        render_indextts_macos_tts_settings(tr)
     elif selected_engine == config.INDEXTTS2_ENGINE:
         render_indextts2_tts_settings(tr)
     elif selected_engine == config.OMNIVOICE_ENGINE:
         render_omnivoice_tts_settings(tr)
+    elif selected_engine == config.VOXCPM_ENGINE:
+        render_voxcpm_tts_settings(tr)
+    elif selected_engine == config.VOXCPM2_ENGINE:
+        render_voxcpm2_tts_settings(tr)
     elif selected_engine == "doubaotts":
         render_doubaotts_settings(tr)
 
@@ -1122,11 +1153,115 @@ def render_indextts_tts_settings(tr):
         config.ui["voice_name"] = f"{config.INDEXTTS_VOICE_PREFIX}{reference_audio}"
 
 
-def render_indextts2_tts_settings(tr):
-    """渲染 IndexTTS-2 TTS 设置"""
+def render_indextts_macos_tts_settings(tr):
+    """渲染 IndexTTS-1.5 macOS MLX Pack 设置。"""
+    tts_config = config.indextts_macos
+
+    def bounded_value(key, default, min_value, max_value):
+        try:
+            value = float(tts_config.get(key, default))
+        except (TypeError, ValueError):
+            value = default
+        return max(min_value, min(max_value, value))
+
     api_url = st.text_input(
         tr("API URL"),
-        value=config.indextts2.get("api_url", "http://192.168.3.6:7863/tts"),
+        value=tts_config.get("api_url", "http://127.0.0.1:7866"),
+        help=tr("IndexTTS macOS API URL Help"),
+    )
+    reference_audio_source, reference_audio = render_indextts_reference_audio_selector(
+        tr,
+        tts_config,
+        "indextts_macos",
+    )
+
+    speed = st.slider(
+        tr("IndexTTS2 Speed"),
+        min_value=0.5,
+        max_value=2.0,
+        value=bounded_value("speed", 1.0, 0.5, 2.0),
+        step=0.05,
+        help=tr("IndexTTS2 Speed Help"),
+    )
+    seed = st.text_input(
+        tr("IndexTTS2 Seed"),
+        value=str(tts_config.get("seed", "") or ""),
+        help=tr("IndexTTS2 Seed Help"),
+        placeholder=tr("IndexTTS2 Seed Placeholder"),
+    )
+
+    with st.expander(tr("Advanced Parameters"), expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            temperature = st.slider(
+                tr("Sampling Temperature"), 0.0, 2.0,
+                bounded_value("temperature", 1.0, 0.0, 2.0), 0.05,
+            )
+            top_p = st.slider(
+                "Top P", 0.05, 1.0,
+                bounded_value("top_p", 0.8, 0.05, 1.0), 0.05,
+            )
+            top_k = st.slider(
+                "Top K", 0, 200,
+                int(bounded_value("top_k", 30, 0, 200)), 1,
+            )
+            max_text_tokens_per_segment = st.slider(
+                tr("Max Text Tokens Per Segment"), 20, 600,
+                int(bounded_value("max_text_tokens_per_segment", 120, 20, 600)), 10,
+            )
+        with col2:
+            repetition_penalty = st.slider(
+                tr("Repetition Penalty"), 1.0, 20.0,
+                bounded_value("repetition_penalty", 10.0, 1.0, 20.0), 0.1,
+            )
+            max_mel_tokens = st.slider(
+                tr("Max Mel Tokens"), 64, 1600,
+                int(bounded_value("max_mel_tokens", 800, 64, 1600)), 1,
+            )
+            interval_silence = st.slider(
+                tr("Interval Silence"), 0, 2000,
+                int(bounded_value("interval_silence", 200, 0, 2000)), 50,
+            )
+            segment_overlap_ms = st.slider(
+                tr("Segment Overlap"), 0, 500,
+                int(bounded_value("segment_overlap_ms", 50, 0, 500)), 10,
+            )
+
+    with st.expander(tr("IndexTTS macOS Usage Instructions Title"), expanded=False):
+        st.markdown(tr("IndexTTS macOS Usage Instructions"))
+
+    tts_config["api_url"] = api_url
+    tts_config["reference_audio_source"] = reference_audio_source
+    tts_config["reference_audio"] = reference_audio
+    tts_config["speed"] = speed
+    tts_config["seed"] = seed.strip()
+    tts_config["temperature"] = temperature
+    tts_config["top_p"] = top_p
+    tts_config["top_k"] = top_k
+    tts_config["max_text_tokens_per_segment"] = max_text_tokens_per_segment
+    tts_config["repetition_penalty"] = repetition_penalty
+    tts_config["max_mel_tokens"] = max_mel_tokens
+    tts_config["interval_silence"] = interval_silence
+    tts_config["segment_overlap_ms"] = segment_overlap_ms
+    if reference_audio:
+        config.ui["voice_name"] = f"{config.INDEXTTS_MACOS_VOICE_PREFIX}{reference_audio}"
+    st.session_state["voice_rate"] = 1.0
+    st.session_state["voice_pitch"] = 1.0
+
+
+def render_indextts2_tts_settings(tr):
+    """渲染 IndexTTS-2 MLX Pack TTS 设置"""
+
+    def bounded_value(key, default, min_value, max_value):
+        try:
+            value = float(config.indextts2.get(key, default))
+        except (TypeError, ValueError):
+            value = default
+        return max(min_value, min(max_value, value))
+
+    api_url = st.text_input(
+        tr("API URL"),
+        value=config.indextts2.get("api_url", "http://127.0.0.1:7860"),
         help=tr("IndexTTS2 API URL Help")
     )
 
@@ -1135,108 +1270,43 @@ def render_indextts2_tts_settings(tr):
         config.indextts2,
         "indextts2",
     )
-
-    emotion_mode_options = [
-        ("speaker", tr("Emotion Mode Speaker")),
-        ("audio", tr("Emotion Mode Audio")),
-        ("vector", tr("Emotion Mode Vector")),
-        ("text", tr("Emotion Mode Text")),
-    ]
-    saved_emotion_mode = config.indextts2.get("emotion_mode", "speaker")
-    emotion_mode_values = [item[0] for item in emotion_mode_options]
-    if saved_emotion_mode not in emotion_mode_values:
-        saved_emotion_mode = "speaker"
+    initial_emotion = config.get_indextts2_pack_emotion(config.indextts2)
+    legacy_emotion_audio = (
+        config.indextts2.get("emotion_mode") == "audio"
+        and bool(config.indextts2.get("emotion_audio"))
+    )
 
     with st.expander(tr("IndexTTS2 Emotion Parameters"), expanded=False):
-        emotion_mode = emotion_mode_options[st.selectbox(
-            tr("Emotion Mode"),
-            options=range(len(emotion_mode_options)),
-            index=emotion_mode_values.index(saved_emotion_mode),
-            format_func=lambda x: emotion_mode_options[x][1],
-            help=tr("Emotion Mode Help"),
-        )][0]
-
-        emotion_alpha = st.slider(
+        emotion = st.text_input(
+            tr("IndexTTS2 Emotion"),
+            value=initial_emotion,
+            help=tr("IndexTTS2 Emotion Help"),
+            placeholder=tr("IndexTTS2 Emotion Placeholder"),
+        )
+        if legacy_emotion_audio and not emotion.strip():
+            st.warning(tr("IndexTTS2 Emotion Audio Unsupported"))
+        emo_alpha = st.slider(
             tr("Emotion Alpha"),
             min_value=0.0,
             max_value=1.0,
-            value=float(config.indextts2.get("emotion_alpha", 0.65)),
+            value=bounded_value("emo_alpha", config.indextts2.get("emotion_alpha", 0.6), 0.0, 1.0),
             step=0.05,
             help=tr("Emotion Alpha Help"),
         )
-
-        emotion_audio = config.indextts2.get("emotion_audio", "")
-        emotion_text = config.indextts2.get("emotion_text", "")
-        if emotion_mode == "audio":
-            emotion_audio_col, emotion_preview_col = st.columns([5, 1])
-            with emotion_audio_col:
-                emotion_audio = st.text_input(
-                    tr("Emotion Reference Audio Path"),
-                    value=emotion_audio,
-                    help=tr("Emotion Reference Audio Path Help"),
-                )
-            with emotion_preview_col:
-                render_reference_audio_preview_button(
-                    emotion_audio,
-                    "indextts2_emotion_audio_preview",
-                    tr,
-                    preview_state_key="indextts2_emotion_audio_preview_path",
-                )
-            preview_audio_path = st.session_state.get("indextts2_emotion_audio_preview_path", "")
-            if preview_audio_path == emotion_audio and os.path.isfile(preview_audio_path):
-                with open(preview_audio_path, "rb") as audio_file:
-                    st.audio(audio_file.read(), format=get_audio_mime_type(preview_audio_path))
-        elif emotion_mode == "text":
-            emotion_text = st.text_input(
-                tr("Emotion Text"),
-                value=emotion_text,
-                help=tr("Emotion Text Help"),
-                placeholder=tr("Emotion Text Placeholder"),
-            )
-
-        use_random = st.checkbox(
-            tr("Use Random Emotion"),
-            value=bool(config.indextts2.get("use_random", False)),
-            help=tr("Use Random Emotion Help"),
+        speed = st.slider(
+            tr("IndexTTS2 Speed"),
+            min_value=0.5,
+            max_value=2.0,
+            value=bounded_value("speed", 1.0, 0.5, 2.0),
+            step=0.05,
+            help=tr("IndexTTS2 Speed Help"),
         )
-
-        emotion_vector_defaults = {
-            "vec_happy": 0.0,
-            "vec_angry": 0.0,
-            "vec_sad": 0.0,
-            "vec_afraid": 0.0,
-            "vec_disgusted": 0.0,
-            "vec_melancholic": 0.0,
-            "vec_surprised": 0.0,
-            "vec_calm": 0.8,
-        }
-        emotion_vector_labels = {
-            "vec_happy": tr("Emotion Happy"),
-            "vec_angry": tr("Emotion Angry"),
-            "vec_sad": tr("Emotion Sad"),
-            "vec_afraid": tr("Emotion Afraid"),
-            "vec_disgusted": tr("Emotion Disgusted"),
-            "vec_melancholic": tr("Emotion Melancholic"),
-            "vec_surprised": tr("Emotion Surprised"),
-            "vec_calm": tr("Emotion Calm"),
-        }
-        emotion_vector_values = {}
-        if emotion_mode == "vector":
-            vec_cols = st.columns(2)
-            for index, (field, default_value) in enumerate(emotion_vector_defaults.items()):
-                with vec_cols[index % 2]:
-                    emotion_vector_values[field] = st.slider(
-                        emotion_vector_labels[field],
-                        min_value=0.0,
-                        max_value=1.0,
-                        value=float(config.indextts2.get(field, default_value)),
-                        step=0.05,
-                    )
-        else:
-            emotion_vector_values = {
-                field: float(config.indextts2.get(field, default_value))
-                for field, default_value in emotion_vector_defaults.items()
-            }
+        seed = st.text_input(
+            tr("IndexTTS2 Seed"),
+            value=str(config.indextts2.get("seed", "") or ""),
+            help=tr("IndexTTS2 Seed Help"),
+            placeholder=tr("IndexTTS2 Seed Placeholder"),
+        )
 
     with st.expander(tr("Advanced Parameters"), expanded=False):
         col1, col2 = st.columns(2)
@@ -1244,65 +1314,92 @@ def render_indextts2_tts_settings(tr):
         with col1:
             temperature = st.slider(
                 tr("Sampling Temperature"),
-                min_value=0.1,
+                min_value=0.05,
                 max_value=2.0,
-                value=float(config.indextts2.get("temperature", 0.8)),
-                step=0.1,
+                value=bounded_value("temperature", 0.8, 0.05, 2.0),
+                step=0.05,
                 help=tr("Sampling Temperature Help")
             )
 
             top_p = st.slider(
                 "Top P",
-                min_value=0.0,
+                min_value=0.05,
                 max_value=1.0,
-                value=float(config.indextts2.get("top_p", 0.8)),
+                value=bounded_value("top_p", 0.8, 0.05, 1.0),
                 step=0.05,
                 help=tr("Top P Help")
             )
 
             top_k = st.slider(
                 "Top K",
-                min_value=0,
-                max_value=100,
-                value=int(config.indextts2.get("top_k", 30)),
-                step=5,
-                help=tr("Top K Help")
+                min_value=1,
+                max_value=200,
+                value=int(bounded_value("top_k", 30, 1, 200)),
+                step=1,
+                help=tr("IndexTTS2 Top K Help")
             )
 
             max_text_tokens_per_segment = st.slider(
                 tr("Max Text Tokens Per Segment"),
                 min_value=20,
                 max_value=600,
-                value=int(config.indextts2.get("max_text_tokens_per_segment", 120)),
+                value=int(bounded_value("max_text_tokens_per_segment", 120, 20, 600)),
                 step=10,
                 help=tr("Max Text Tokens Per Segment Help")
             )
 
+            interval_silence = st.slider(
+                tr("Interval Silence"),
+                min_value=0,
+                max_value=5000,
+                value=int(bounded_value("interval_silence", 200, 0, 5000)),
+                step=50,
+                help=tr("Interval Silence Help"),
+            )
+
+            segment_overlap_ms = st.slider(
+                tr("Segment Overlap"),
+                min_value=0,
+                max_value=1000,
+                value=int(bounded_value("segment_overlap_ms", 50, 0, 1000)),
+                step=10,
+                help=tr("Segment Overlap Help"),
+            )
+
         with col2:
-            num_beams = st.slider(
-                tr("Num Beams"),
+            diffusion_steps = st.slider(
+                tr("Diffusion Steps"),
                 min_value=1,
-                max_value=10,
-                value=int(config.indextts2.get("num_beams", 3)),
+                max_value=100,
+                value=int(bounded_value("diffusion_steps", 25, 1, 100)),
                 step=1,
-                help=tr("Num Beams Help")
+                help=tr("Diffusion Steps Help")
+            )
+
+            cfg_rate = st.slider(
+                tr("CFG Rate"),
+                min_value=0.0,
+                max_value=2.0,
+                value=bounded_value("cfg_rate", 0.7, 0.0, 2.0),
+                step=0.05,
+                help=tr("CFG Rate Help"),
             )
 
             repetition_penalty = st.slider(
                 tr("Repetition Penalty"),
-                min_value=0.1,
-                max_value=20.0,
-                value=float(config.indextts2.get("repetition_penalty", 10.0)),
+                min_value=1.0,
+                max_value=30.0,
+                value=bounded_value("repetition_penalty", 10.0, 1.0, 30.0),
                 step=0.1,
                 help=tr("Repetition Penalty Help")
             )
 
             max_mel_tokens = st.slider(
                 tr("Max Mel Tokens"),
-                min_value=50,
+                min_value=64,
                 max_value=1815,
-                value=int(config.indextts2.get("max_mel_tokens", 1500)),
-                step=10,
+                value=int(bounded_value("max_mel_tokens", 1500, 64, 1815)),
+                step=1,
                 help=tr("Max Mel Tokens Help")
             )
 
@@ -1312,20 +1409,32 @@ def render_indextts2_tts_settings(tr):
     config.indextts2["api_url"] = api_url
     config.indextts2["reference_audio_source"] = reference_audio_source
     config.indextts2["reference_audio"] = reference_audio
-    config.indextts2["emotion_mode"] = emotion_mode
-    config.indextts2["emotion_audio"] = emotion_audio
-    config.indextts2["emotion_alpha"] = emotion_alpha
-    config.indextts2["emotion_text"] = emotion_text
-    config.indextts2["use_random"] = use_random
+    config.indextts2["emotion"] = emotion
+    config.indextts2["emo_alpha"] = emo_alpha
+    config.indextts2["speed"] = speed
+    config.indextts2["seed"] = seed.strip()
     config.indextts2["max_text_tokens_per_segment"] = max_text_tokens_per_segment
-    for field, value in emotion_vector_values.items():
-        config.indextts2[field] = value
+    config.indextts2["interval_silence"] = interval_silence
+    config.indextts2["segment_overlap_ms"] = segment_overlap_ms
     config.indextts2["temperature"] = temperature
     config.indextts2["top_p"] = top_p
     config.indextts2["top_k"] = top_k
-    config.indextts2["num_beams"] = num_beams
     config.indextts2["repetition_penalty"] = repetition_penalty
     config.indextts2["max_mel_tokens"] = max_mel_tokens
+    config.indextts2["diffusion_steps"] = diffusion_steps
+    config.indextts2["cfg_rate"] = cfg_rate
+
+    legacy_fields = (
+        "emotion_mode", "emotion_audio", "emotion_alpha", "emotion_text", "use_random",
+        "num_beams", "vec_happy", "vec_angry", "vec_sad", "vec_afraid",
+        "vec_disgusted", "vec_melancholic", "vec_surprised", "vec_calm",
+    )
+    if legacy_emotion_audio and not emotion.strip():
+        legacy_fields = tuple(
+            field for field in legacy_fields if field not in {"emotion_mode", "emotion_audio"}
+        )
+    for field in legacy_fields:
+        config.indextts2.pop(field, None)
 
     if reference_audio:
         config.ui["voice_name"] = f"{config.INDEXTTS2_VOICE_PREFIX}{reference_audio}"
@@ -1472,6 +1581,109 @@ def render_omnivoice_tts_settings(tr):
     else:
         config.ui["voice_name"] = f"{config.OMNIVOICE_VOICE_PREFIX}{mode}"
     st.session_state["voice_rate"] = voice_rate
+    st.session_state["voice_pitch"] = 1.0
+
+
+def render_voxcpm_tts_settings(tr):
+    """渲染 VoxCPM-0.5B-Pack 设置。"""
+    pack_config = config.voxcpm_05b
+    api_url = st.text_input(
+        tr("API URL"),
+        value=pack_config.get("api_url", "http://127.0.0.1:7864"),
+        help=tr("VoxCPM API URL Help"),
+    )
+    use_reference = st.checkbox(
+        tr("VoxCPM Use Reference Audio"),
+        value=bool(pack_config.get("reference_audio", "")),
+        help=tr("VoxCPM Use Reference Audio Help"),
+    )
+    source = pack_config.get("reference_audio_source", "resource")
+    reference_audio = pack_config.get("reference_audio", "")
+    prompt_text = pack_config.get("prompt_text", "")
+    if use_reference:
+        source, reference_audio = render_indextts_reference_audio_selector(tr, pack_config, "voxcpm_05b")
+        prompt_text = st.text_area(
+            tr("VoxCPM Prompt Text"), value=prompt_text,
+            help=tr("VoxCPM Prompt Text Help"), height=90,
+        )
+    else:
+        reference_audio = ""
+
+    with st.expander(tr("Advanced Parameters"), expanded=False):
+        cfg_value = st.slider("CFG Value", 1.0, 3.0, float(pack_config.get("cfg_value", 2.0)), 0.1)
+        inference_timesteps = st.slider("Inference Timesteps", 1, 50, int(pack_config.get("inference_timesteps", 10)), 1)
+        max_length = st.number_input("Max Length", 128, 8192, int(pack_config.get("max_length", 4096)), 128)
+        normalize = st.checkbox(tr("VoxCPM Normalize"), value=bool(pack_config.get("normalize", True)))
+        denoise = st.checkbox(tr("VoxCPM Denoise"), value=bool(pack_config.get("denoise", False)))
+
+    with st.expander(tr("VoxCPM Usage Instructions Title"), expanded=False):
+        st.markdown(tr("VoxCPM Usage Instructions"))
+
+    pack_config.update({
+        "api_url": api_url, "reference_audio_source": source,
+        "reference_audio": reference_audio, "prompt_text": prompt_text,
+        "cfg_value": cfg_value, "inference_timesteps": inference_timesteps,
+        "max_length": max_length, "normalize": normalize, "denoise": denoise,
+    })
+    config.ui["voice_name"] = f"{config.VOXCPM_VOICE_PREFIX}{reference_audio or 'default'}"
+    st.session_state["voice_rate"] = 1.0
+    st.session_state["voice_pitch"] = 1.0
+
+
+def render_voxcpm2_tts_settings(tr):
+    """渲染 VoxCPM-2B-Pack 设置。"""
+    pack_config = config.voxcpm_2b
+    api_url = st.text_input(
+        tr("API URL"), value=pack_config.get("api_url", "http://127.0.0.1:7863"),
+        help=tr("VoxCPM2 API URL Help"),
+    )
+    mode_options = [("design", tr("VoxCPM2 Mode Design")), ("clone", tr("VoxCPM2 Mode Clone"))]
+    mode_values = [item[0] for item in mode_options]
+    saved_mode = pack_config.get("mode", "design")
+    if saved_mode not in mode_values:
+        saved_mode = "design"
+    mode = mode_options[st.selectbox(
+        tr("VoxCPM2 Generation Mode"), options=range(len(mode_options)),
+        index=mode_values.index(saved_mode), format_func=lambda index: mode_options[index][1],
+        help=tr("VoxCPM2 Generation Mode Help"),
+    )][0]
+    control = st.text_area(
+        tr("VoxCPM2 Voice Control"), value=pack_config.get("control", ""),
+        help=tr("VoxCPM2 Voice Control Help"), height=80,
+    )
+    source = pack_config.get("reference_audio_source", "resource")
+    reference_audio = pack_config.get("reference_audio", "")
+    prompt_text = pack_config.get("prompt_text", "")
+    if mode == "clone":
+        source, reference_audio = render_indextts_reference_audio_selector(tr, pack_config, "voxcpm_2b")
+        prompt_text = st.text_area(
+            tr("VoxCPM Prompt Text"), value=prompt_text,
+            help=tr("VoxCPM Prompt Text Help"), height=90,
+        )
+    else:
+        reference_audio = ""
+
+    with st.expander(tr("Advanced Parameters"), expanded=False):
+        cfg_value = st.slider("CFG Value", 1.0, 3.0, float(pack_config.get("cfg_value", 2.0)), 0.1, key="voxcpm2_cfg")
+        inference_timesteps = st.slider("Inference Timesteps", 1, 50, int(pack_config.get("inference_timesteps", 10)), 1, key="voxcpm2_steps")
+        normalize = st.checkbox(tr("VoxCPM Normalize"), value=bool(pack_config.get("normalize", True)), key="voxcpm2_normalize")
+        denoise = st.checkbox(tr("VoxCPM Denoise"), value=bool(pack_config.get("denoise", False)), key="voxcpm2_denoise")
+        output_48k = st.checkbox(tr("VoxCPM2 Output 48k"), value=bool(pack_config.get("output_48k", True)))
+        context_aware = st.checkbox(tr("VoxCPM2 Context Aware"), value=bool(pack_config.get("context_aware", True)))
+        streaming = st.checkbox(tr("VoxCPM2 Streaming"), value=bool(pack_config.get("streaming", False)))
+
+    with st.expander(tr("VoxCPM2 Usage Instructions Title"), expanded=False):
+        st.markdown(tr("VoxCPM2 Usage Instructions"))
+    pack_config.update({
+        "api_url": api_url, "mode": mode, "control": control,
+        "reference_audio_source": source, "reference_audio": reference_audio,
+        "prompt_text": prompt_text, "cfg_value": cfg_value,
+        "inference_timesteps": inference_timesteps, "normalize": normalize,
+        "denoise": denoise, "output_48k": output_48k,
+        "context_aware": context_aware, "streaming": streaming,
+    })
+    config.ui["voice_name"] = f"{config.VOXCPM2_VOICE_PREFIX}{reference_audio if mode == 'clone' else mode}"
+    st.session_state["voice_rate"] = 1.0
     st.session_state["voice_pitch"] = 1.0
 
 
@@ -1974,6 +2186,12 @@ def render_voice_preview_new(tr, selected_engine):
                 voice_name = f"{config.INDEXTTS_VOICE_PREFIX}{reference_audio}"
             voice_rate = 1.0  # IndexTTS-1.5 不支持速度调节
             voice_pitch = 1.0  # IndexTTS-1.5 不支持音调调节
+        elif selected_engine == config.INDEXTTS_MACOS_ENGINE:
+            reference_audio = config.indextts_macos.get("reference_audio", "")
+            if reference_audio:
+                voice_name = f"{config.INDEXTTS_MACOS_VOICE_PREFIX}{reference_audio}"
+            voice_rate = 1.0  # 语速由 macOS Pack 配置传递
+            voice_pitch = 1.0
         elif selected_engine == config.INDEXTTS2_ENGINE:
             reference_audio = config.indextts2.get("reference_audio", "")
             if reference_audio:
@@ -1989,6 +2207,17 @@ def render_voice_preview_new(tr, selected_engine):
                 voice_name = f"{config.OMNIVOICE_VOICE_PREFIX}{mode}"
             voice_rate = config.omnivoice.get("speed", 1.0)
             voice_pitch = 1.0
+        elif selected_engine == config.VOXCPM_ENGINE:
+            reference_audio = config.voxcpm_05b.get("reference_audio", "")
+            voice_name = f"{config.VOXCPM_VOICE_PREFIX}{reference_audio or 'default'}"
+            voice_rate = 1.0
+            voice_pitch = 1.0
+        elif selected_engine == config.VOXCPM2_ENGINE:
+            mode = config.voxcpm_2b.get("mode", "design")
+            reference_audio = config.voxcpm_2b.get("reference_audio", "")
+            voice_name = f"{config.VOXCPM2_VOICE_PREFIX}{reference_audio if mode == 'clone' else mode}"
+            voice_rate = 1.0
+            voice_pitch = 1.0
         elif selected_engine == "doubaotts":
             voice_type = config.ui.get("doubaotts_voice_type", "zh_female_vv_uranus_bigtts")
             voice_name = voice_type
@@ -2003,8 +2232,11 @@ def render_voice_preview_new(tr, selected_engine):
             temp_dir = utils.storage_dir("temp", create=True)
             audio_format = "audio/wav" if selected_engine in (
                 config.INDEXTTS_ENGINE,
+                config.INDEXTTS_MACOS_ENGINE,
                 config.INDEXTTS2_ENGINE,
                 config.OMNIVOICE_ENGINE,
+                config.VOXCPM_ENGINE,
+                config.VOXCPM2_ENGINE,
             ) else "audio/mp3"
             audio_extension = ".wav" if audio_format == "audio/wav" else ".mp3"
             audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}{audio_extension}")
@@ -2145,16 +2377,58 @@ def render_voice_preview(tr, voice_name):
                 st.error(tr("Voice synthesis failed"))
 
 
+def render_sonilo_bgm_settings(tr):
+    """渲染 Sonilo AI 配乐设置（可选功能，默认关闭）"""
+    # 避免在本模块顶层引入 basic_settings 的重依赖链，按需导入。
+    from webui.components.basic_settings import update_app_config_if_changed
+
+    st.info(tr("Sonilo BGM Notice"))
+
+    sonilo_api_key = st.text_input(
+        tr("Sonilo API Key"),
+        value=config.app.get("sonilo_api_key", ""),
+        type="password",
+        help=tr("Sonilo API Key Help"),
+        key="sonilo_api_key_input",
+    )
+    sonilo_bgm_prompt = st.text_input(
+        tr("Sonilo BGM Prompt"),
+        value=config.app.get("sonilo_bgm_prompt", ""),
+        help=tr("Sonilo BGM Prompt Help"),
+        key="sonilo_bgm_prompt_input",
+    )
+
+    api_key_changed = update_app_config_if_changed(
+        "sonilo_api_key", str(sonilo_api_key or "").strip()
+    )
+    prompt_changed = update_app_config_if_changed(
+        "sonilo_bgm_prompt", str(sonilo_bgm_prompt or "").strip()
+    )
+    if api_key_changed or prompt_changed:
+        try:
+            config.save_config()
+            st.success(tr("Sonilo config saved"))
+        except Exception as e:
+            st.error(f"{tr('Failed to save config')}: {str(e)}")
+            logger.error(f"保存 Sonilo 配置失败: {str(e)}")
+
+    if not sonilo.is_enabled():
+        st.warning(tr("Sonilo API Key Required"))
+
+
 def render_bgm_settings(tr):
     """渲染背景音乐设置"""
     saved_bgm_file = st.session_state.get('bgm_file', '')
     saved_bgm_source = st.session_state.get('bgm_source', 'none')
     if st.session_state.get('bgm_type') == "":
         saved_bgm_source = "none"
+    elif st.session_state.get('bgm_type') == "sonilo":
+        saved_bgm_source = "sonilo"
 
     bgm_source_labels = {
         "resource": "Select from Resource Directory",
         "upload": "Upload Background Music",
+        "sonilo": "Sonilo AI Background Music",
         "none": "No Background Music",
     }
     if saved_bgm_source not in bgm_source_labels:
@@ -2237,12 +2511,18 @@ def render_bgm_settings(tr):
                 tr,
             )
 
+    if bgm_source == "sonilo":
+        render_sonilo_bgm_settings(tr)
+
     preview_bgm_path = st.session_state.get("bgm_preview_path", "")
     if preview_bgm_path == bgm_file and os.path.isfile(preview_bgm_path):
         with open(preview_bgm_path, "rb") as audio_file:
             st.audio(audio_file.read(), format=get_audio_mime_type(preview_bgm_path))
 
-    bgm_type = "" if bgm_source == "none" or not bgm_file else "custom"
+    if bgm_source == "sonilo":
+        bgm_type = "sonilo"
+    else:
+        bgm_type = "" if bgm_source == "none" or not bgm_file else "custom"
     st.session_state['bgm_source'] = bgm_source
     st.session_state['bgm_type'] = bgm_type
     st.session_state['bgm_file'] = bgm_file if bgm_type else ""

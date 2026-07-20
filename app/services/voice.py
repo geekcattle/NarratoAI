@@ -1395,6 +1395,10 @@ def tts(
         logger.info("分发到 IndexTTS-1.5")
         return indextts_tts(text, voice_name, voice_file, speed=voice_rate)
 
+    if tts_engine == config.INDEXTTS_MACOS_ENGINE:
+        logger.info("分发到 IndexTTS-1.5-macOS")
+        return indextts_macos_tts(text, voice_name, voice_file)
+
     if tts_engine == config.INDEXTTS2_ENGINE:
         logger.info("分发到 IndexTTS-2")
         return indextts2_tts(text, voice_name, voice_file)
@@ -1402,6 +1406,14 @@ def tts(
     if tts_engine == config.OMNIVOICE_ENGINE:
         logger.info("分发到 OmniVoice")
         return omnivoice_tts(text, voice_name, voice_file, speed=voice_rate)
+
+    if tts_engine == config.VOXCPM_ENGINE:
+        logger.info("分发到 VoxCPM-0.5B")
+        return voxcpm_tts(text, voice_name, voice_file)
+
+    if tts_engine == config.VOXCPM2_ENGINE:
+        logger.info("分发到 VoxCPM-2B")
+        return voxcpm2_tts(text, voice_name, voice_file)
     
     if tts_engine == "doubaotts":
         logger.info("分发到豆包语音 TTS")
@@ -1889,8 +1901,11 @@ def tts_multiple(task_id: str, list_script: list, voice_name: str, voice_rate: f
     tts_results = []
     audio_extension = ".wav" if tts_engine in (
         config.INDEXTTS_ENGINE,
+        config.INDEXTTS_MACOS_ENGINE,
         config.INDEXTTS2_ENGINE,
         config.OMNIVOICE_ENGINE,
+        config.VOXCPM_ENGINE,
+        config.VOXCPM2_ENGINE,
     ) else ".mp3"
 
     for item in list_script:
@@ -1921,7 +1936,14 @@ def tts_multiple(task_id: str, list_script: list, voice_name: str, voice_rate: f
                 if (
                     is_soulvoice_voice(voice_name)
                     or is_qwen_engine(tts_engine)
-                    or tts_engine in (config.INDEXTTS_ENGINE, config.INDEXTTS2_ENGINE, config.OMNIVOICE_ENGINE)
+                    or tts_engine in (
+                        config.INDEXTTS_ENGINE,
+                        config.INDEXTTS_MACOS_ENGINE,
+                        config.INDEXTTS2_ENGINE,
+                        config.OMNIVOICE_ENGINE,
+                        config.VOXCPM_ENGINE,
+                        config.VOXCPM2_ENGINE,
+                    )
                     or tts_engine == "doubaotts"
                 ):
                     # 获取实际音频文件的时长
@@ -2364,6 +2386,13 @@ def parse_indextts2_voice(voice_name: str) -> str:
     return voice_name
 
 
+def parse_indextts_macos_voice(voice_name: str) -> str:
+    """解析 IndexTTS-1.5-macOS 参考音频路径。"""
+    if isinstance(voice_name, str) and voice_name.startswith(config.INDEXTTS_MACOS_VOICE_PREFIX):
+        return voice_name[len(config.INDEXTTS_MACOS_VOICE_PREFIX):]
+    return voice_name
+
+
 def parse_omnivoice_voice(voice_name: str) -> str:
     """
     解析 OmniVoice 语音名称
@@ -2372,6 +2401,20 @@ def parse_omnivoice_voice(voice_name: str) -> str:
     """
     if isinstance(voice_name, str) and voice_name.startswith(config.OMNIVOICE_VOICE_PREFIX):
         return voice_name[len(config.OMNIVOICE_VOICE_PREFIX):]
+    return voice_name
+
+
+def parse_voxcpm_voice(voice_name: str) -> str:
+    """解析 VoxCPM-0.5B 的可选参考音频路径。"""
+    if isinstance(voice_name, str) and voice_name.startswith(config.VOXCPM_VOICE_PREFIX):
+        return voice_name[len(config.VOXCPM_VOICE_PREFIX):]
+    return voice_name
+
+
+def parse_voxcpm2_voice(voice_name: str) -> str:
+    """解析 VoxCPM-2B 的模式或参考音频路径。"""
+    if isinstance(voice_name, str) and voice_name.startswith(config.VOXCPM2_VOICE_PREFIX):
+        return voice_name[len(config.VOXCPM2_VOICE_PREFIX):]
     return voice_name
 
 
@@ -2488,10 +2531,166 @@ def indextts_tts(text: str, voice_name: str, voice_file: str, speed: float = 1.0
 
 
 def _normalize_indextts2_api_url(api_url: str) -> str:
-    api_url = (api_url or "http://192.168.3.6:7863/tts").strip()
-    if api_url.endswith("/tts"):
+    """Return the IndexTTS-2 MLX Pack upload endpoint for a configured URL.
+
+    The Pack accepts a server root, the JSON speech endpoint, or the multipart
+    upload endpoint.  Treat an old ``/tts`` value as a server root so existing
+    saved settings move to the new Pack route instead of continuing to 404.
+    """
+    api_url = (api_url or "http://127.0.0.1:7860").strip().rstrip("/")
+    upload_path = "/v1/audio/speech/upload"
+    speech_path = "/v1/audio/speech"
+
+    if api_url.endswith(upload_path):
         return api_url
-    return f"{api_url.rstrip('/')}/tts"
+    if api_url.endswith(speech_path):
+        return f"{api_url}/upload"
+    if api_url.endswith("/tts"):
+        api_url = api_url[: -len("/tts")]
+    return f"{api_url}{upload_path}"
+
+
+def _normalize_indextts_macos_api_url(api_url: str) -> str:
+    """Return the IndexTTS 1.5 MLX Pack multipart upload endpoint."""
+    api_url = (api_url or "http://127.0.0.1:7866").strip().rstrip("/")
+    upload_path = "/v1/audio/speech/upload"
+    speech_path = "/v1/audio/speech"
+    if api_url.endswith(upload_path):
+        return api_url
+    if api_url.endswith(speech_path):
+        return f"{api_url}/upload"
+    return f"{api_url}{upload_path}"
+
+
+def _get_indextts_macos_number(
+    key: str,
+    default: float | int,
+    minimum: float | int,
+    maximum: float | int,
+    *,
+    integer: bool = False,
+) -> float | int:
+    try:
+        raw_value = config.indextts_macos.get(key, default)
+        value = int(float(raw_value)) if integer else float(raw_value)
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+def _get_indextts_macos_seed() -> int | None:
+    seed = config.indextts_macos.get("seed")
+    if seed in (None, ""):
+        return None
+    try:
+        return int(seed)
+    except (TypeError, ValueError):
+        logger.warning("IndexTTS-1.5-macOS 随机种子无效，将使用随机采样: {}", seed)
+        return None
+
+
+def _download_indextts_macos_audio(
+    response: requests.Response,
+    api_url: str,
+    voice_file: str,
+    proxies: dict,
+) -> bool:
+    try:
+        result = response.json()
+    except ValueError:
+        logger.error("IndexTTS-1.5-macOS API 返回了无效的 JSON 响应")
+        return False
+
+    download_url = result.get("output_url") if isinstance(result, dict) else ""
+    if not download_url:
+        logger.error(f"IndexTTS-1.5-macOS API 响应中没有音频下载地址: {result}")
+        return False
+
+    audio_response = requests.get(
+        urljoin(api_url, download_url),
+        proxies=proxies,
+        timeout=120,
+    )
+    if audio_response.status_code != 200:
+        logger.error(
+            f"IndexTTS-1.5-macOS 音频下载失败: "
+            f"{audio_response.status_code} - {audio_response.text}"
+        )
+        return False
+
+    with open(voice_file, "wb") as f:
+        f.write(audio_response.content)
+    return os.path.getsize(voice_file) > 0
+
+
+def indextts_macos_tts(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:
+    """使用 IndexTTS-MLX-1.5-Pack 的上传接口进行零样本语音克隆。"""
+    api_url = _normalize_indextts_macos_api_url(
+        config.indextts_macos.get("api_url", "http://127.0.0.1:7866")
+    )
+    reference_audio_path = parse_indextts_macos_voice(voice_name)
+    if not reference_audio_path or not os.path.exists(reference_audio_path):
+        logger.error(f"IndexTTS-1.5-macOS 参考音频文件不存在: {reference_audio_path}")
+        return None
+
+    data = {
+        "text": text.strip(),
+        "speed": _get_indextts_macos_number("speed", 1.0, 0.5, 2.0),
+        "max_mel_tokens": _get_indextts_macos_number(
+            "max_mel_tokens", 800, 64, 1600, integer=True
+        ),
+        "max_text_tokens_per_segment": _get_indextts_macos_number(
+            "max_text_tokens_per_segment", 120, 20, 600, integer=True
+        ),
+        "interval_silence": _get_indextts_macos_number(
+            "interval_silence", 200, 0, 2000, integer=True
+        ),
+        "temperature": _get_indextts_macos_number("temperature", 1.0, 0.0, 2.0),
+        "top_p": _get_indextts_macos_number("top_p", 0.8, 0.05, 1.0),
+        "top_k": _get_indextts_macos_number("top_k", 30, 0, 200, integer=True),
+        "repetition_penalty": _get_indextts_macos_number(
+            "repetition_penalty", 10.0, 1.0, 20.0
+        ),
+        "segment_overlap_ms": _get_indextts_macos_number(
+            "segment_overlap_ms", 50, 0, 500, integer=True
+        ),
+    }
+    seed = _get_indextts_macos_seed()
+    if seed is not None:
+        data["seed"] = seed
+
+    proxies = _get_configured_proxies()
+    for attempt in range(3):
+        try:
+            with open(reference_audio_path, "rb") as reference_audio:
+                logger.info(f"第 {attempt + 1} 次调用 IndexTTS-1.5-macOS API: {api_url}")
+                response = requests.post(
+                    api_url,
+                    files={"reference_audio": reference_audio},
+                    data=data,
+                    proxies=proxies,
+                    timeout=600,
+                )
+            if response.status_code == 200 and _download_indextts_macos_audio(
+                response, api_url, voice_file, proxies
+            ):
+                sub_maker = new_sub_maker()
+                duration = get_audio_duration_from_file(voice_file)
+                duration_ms = int(duration * 1000) if duration > 0 else max(1000, int(len(text) * 200))
+                add_subtitle_event(sub_maker, 0, duration_ms * 10000, text)
+                return sub_maker
+            logger.error(
+                f"IndexTTS-1.5-macOS API 调用失败: {response.status_code} - {response.text}"
+            )
+        except requests.exceptions.Timeout:
+            logger.error(f"IndexTTS-1.5-macOS API 调用超时 (尝试 {attempt + 1}/3)")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"IndexTTS-1.5-macOS API 网络错误: {str(e)} (尝试 {attempt + 1}/3)")
+        except Exception as e:
+            logger.error(f"IndexTTS-1.5-macOS TTS 处理错误: {str(e)} (尝试 {attempt + 1}/3)")
+        if attempt < 2:
+            time.sleep(2)
+    return None
 
 
 def _get_configured_proxies() -> dict:
@@ -2503,6 +2702,49 @@ def _get_configured_proxies() -> dict:
     }
 
 
+def _get_indextts2_number(
+    key: str,
+    default: float | int,
+    minimum: float | int,
+    maximum: float | int,
+    *,
+    integer: bool = False,
+) -> float | int:
+    """Read an IndexTTS-2 option and constrain it to the MLX Pack schema."""
+    try:
+        raw_value = config.indextts2.get(key, default)
+        value = int(float(raw_value)) if integer else float(raw_value)
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+def _get_indextts2_seed() -> int | None:
+    """Return the optional Pack seed, omitting invalid legacy text values."""
+    seed = config.indextts2.get("seed")
+    if seed in (None, ""):
+        return None
+    try:
+        return int(seed)
+    except (TypeError, ValueError):
+        logger.warning("IndexTTS-2 随机种子无效，将使用随机采样: {}", seed)
+        return None
+
+
+def _get_indextts2_emotion() -> str:
+    """Map current and legacy IndexTTS-2 emotion settings to the MLX Pack API."""
+    emotion = config.get_indextts2_pack_emotion(config.indextts2)
+    if emotion:
+        return emotion
+
+    emotion_mode = config.indextts2.get("emotion_mode", "speaker")
+    if emotion_mode == "audio" and config.indextts2.get("emotion_audio"):
+        logger.warning(
+            "IndexTTS-2 MLX Pack 不支持单独的情感参考音频，将使用音色参考音频的情感。"
+        )
+    return ""
+
+
 def _download_indextts2_audio(response: requests.Response, api_url: str, voice_file: str, proxies: dict) -> bool:
     content_type = response.headers.get("content-type", "").lower()
     if "application/json" not in content_type:
@@ -2510,9 +2752,14 @@ def _download_indextts2_audio(response: requests.Response, api_url: str, voice_f
             f.write(response.content)
         return os.path.getsize(voice_file) > 0
 
-    result = response.json()
-    downloads = result.get("downloads") if isinstance(result, dict) else {}
-    download_url = downloads.get("wav") if isinstance(downloads, dict) else ""
+    try:
+        result = response.json()
+    except ValueError:
+        logger.error("IndexTTS-2 API 返回了无效的 JSON 响应")
+        return False
+
+    output = result.get("output") if isinstance(result, dict) else {}
+    download_url = output.get("url") if isinstance(output, dict) else ""
     if not download_url:
         logger.error(f"IndexTTS-2 API 响应中没有音频下载地址: {result}")
         return False
@@ -2530,68 +2777,74 @@ def _download_indextts2_audio(response: requests.Response, api_url: str, voice_f
 
 def indextts2_tts(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:
     """
-    使用 IndexTTS-2 API 进行零样本语音克隆。
-    接口兼容 IndexTTS2-Pack 的 POST /tts multipart form。
+    使用 IndexTTS-2 MLX Pack API 进行零样本语音克隆。
+
+    参考音频通过 ``POST /v1/audio/speech/upload`` 上传，这样 Pack 即使
+    运行在另一台机器上，也不需要访问 NarratoAI 的本地文件路径。
     """
-    api_url = _normalize_indextts2_api_url(config.indextts2.get("api_url", "http://192.168.3.6:7863/tts"))
+    api_url = _normalize_indextts2_api_url(config.indextts2.get("api_url", "http://127.0.0.1:7860"))
     reference_audio_path = parse_indextts2_voice(voice_name)
 
     if not reference_audio_path or not os.path.exists(reference_audio_path):
         logger.error(f"IndexTTS-2 参考音频文件不存在: {reference_audio_path}")
         return None
 
-    emotion_mode = config.indextts2.get("emotion_mode", "speaker")
-    emotion_audio_path = config.indextts2.get("emotion_audio", "")
     data = {
         "text": text.strip(),
-        "emotion_mode": emotion_mode,
-        "emotion_alpha": config.indextts2.get("emotion_alpha", 0.65),
-        "emotion_text": config.indextts2.get("emotion_text", ""),
-        "use_random": str(bool(config.indextts2.get("use_random", False))).lower(),
-        "max_text_tokens_per_segment": config.indextts2.get("max_text_tokens_per_segment", 120),
-        "vec_happy": config.indextts2.get("vec_happy", 0.0),
-        "vec_angry": config.indextts2.get("vec_angry", 0.0),
-        "vec_sad": config.indextts2.get("vec_sad", 0.0),
-        "vec_afraid": config.indextts2.get("vec_afraid", 0.0),
-        "vec_disgusted": config.indextts2.get("vec_disgusted", 0.0),
-        "vec_melancholic": config.indextts2.get("vec_melancholic", 0.0),
-        "vec_surprised": config.indextts2.get("vec_surprised", 0.0),
-        "vec_calm": config.indextts2.get("vec_calm", 0.8),
-        "temperature": config.indextts2.get("temperature", 0.8),
-        "top_p": config.indextts2.get("top_p", 0.8),
-        "top_k": config.indextts2.get("top_k", 30),
-        "num_beams": config.indextts2.get("num_beams", 3),
-        "repetition_penalty": config.indextts2.get("repetition_penalty", 10.0),
-        "max_mel_tokens": config.indextts2.get("max_mel_tokens", 1500),
+        "emo_alpha": _get_indextts2_number(
+            "emo_alpha", config.indextts2.get("emotion_alpha", 0.6), 0.0, 1.0
+        ),
+        "speed": _get_indextts2_number("speed", 1.0, 0.5, 2.0),
+        "max_mel_tokens": _get_indextts2_number(
+            "max_mel_tokens", 1500, 64, 1815, integer=True
+        ),
+        "max_text_tokens_per_segment": _get_indextts2_number(
+            "max_text_tokens_per_segment", 120, 20, 600, integer=True
+        ),
+        "interval_silence": _get_indextts2_number(
+            "interval_silence", 200, 0, 5000, integer=True
+        ),
+        "temperature": _get_indextts2_number("temperature", 0.8, 0.05, 2.0),
+        "top_p": _get_indextts2_number("top_p", 0.8, 0.05, 1.0),
+        "top_k": _get_indextts2_number("top_k", 30, 1, 200, integer=True),
+        "repetition_penalty": _get_indextts2_number(
+            "repetition_penalty", 10.0, 1.0, 30.0
+        ),
+        "diffusion_steps": _get_indextts2_number(
+            "diffusion_steps", 25, 1, 100, integer=True
+        ),
+        "cfg_rate": _get_indextts2_number("cfg_rate", 0.7, 0.0, 2.0),
+        "segment_overlap_ms": _get_indextts2_number(
+            "segment_overlap_ms", 50, 0, 1000, integer=True
+        ),
     }
+    emotion = _get_indextts2_emotion()
+    if emotion:
+        data["emotion"] = emotion
+    seed = _get_indextts2_seed()
+    if seed is not None:
+        data["seed"] = seed
 
     proxies = _get_configured_proxies()
     for attempt in range(3):
-        files = {}
         try:
-            files["speaker_audio"] = open(reference_audio_path, "rb")
-            if emotion_mode == "audio":
-                if not emotion_audio_path or not os.path.exists(emotion_audio_path):
-                    logger.error(f"IndexTTS-2 情感参考音频文件不存在: {emotion_audio_path}")
-                    return None
-                files["emotion_audio"] = open(emotion_audio_path, "rb")
+            with open(reference_audio_path, "rb") as reference_audio:
+                logger.info(f"第 {attempt + 1} 次调用 IndexTTS-2 API: {api_url}")
+                response = requests.post(
+                    api_url,
+                    files={"reference_audio": reference_audio},
+                    data=data,
+                    proxies=proxies,
+                    timeout=180,
+                )
 
-            logger.info(f"第 {attempt + 1} 次调用 IndexTTS-2 API: {api_url}")
-            response = requests.post(
-                api_url,
-                files=files,
-                data=data,
-                proxies=proxies,
-                timeout=180,
-            )
-
-            if response.status_code == 200 and _download_indextts2_audio(response, api_url, voice_file, proxies):
-                logger.info(f"IndexTTS-2 成功生成音频: {voice_file}, 大小: {os.path.getsize(voice_file)} 字节")
-                sub_maker = new_sub_maker()
-                duration = get_audio_duration_from_file(voice_file)
-                duration_ms = int(duration * 1000) if duration > 0 else max(1000, int(len(text) * 200))
-                add_subtitle_event(sub_maker, 0, duration_ms * 10000, text)
-                return sub_maker
+                if response.status_code == 200 and _download_indextts2_audio(response, api_url, voice_file, proxies):
+                    logger.info(f"IndexTTS-2 成功生成音频: {voice_file}, 大小: {os.path.getsize(voice_file)} 字节")
+                    sub_maker = new_sub_maker()
+                    duration = get_audio_duration_from_file(voice_file)
+                    duration_ms = int(duration * 1000) if duration > 0 else max(1000, int(len(text) * 200))
+                    add_subtitle_event(sub_maker, 0, duration_ms * 10000, text)
+                    return sub_maker
 
             logger.error(f"IndexTTS-2 API 调用失败: {response.status_code} - {response.text}")
         except requests.exceptions.Timeout:
@@ -2600,17 +2853,149 @@ def indextts2_tts(text: str, voice_name: str, voice_file: str) -> Union[SubMaker
             logger.error(f"IndexTTS-2 API 网络错误: {str(e)} (尝试 {attempt + 1}/3)")
         except Exception as e:
             logger.error(f"IndexTTS-2 TTS 处理错误: {str(e)} (尝试 {attempt + 1}/3)")
-        finally:
-            for file_obj in files.values():
-                try:
-                    file_obj.close()
-                except Exception:
-                    pass
 
         if attempt < 2:
             time.sleep(2)
 
     logger.error("IndexTTS-2 TTS 生成失败，已达到最大重试次数")
+    return None
+
+
+def _normalize_voxcpm_api_url(api_url: str) -> str:
+    api_url = (api_url or "http://127.0.0.1:7864").strip().rstrip("/")
+    if api_url.endswith("/v1/audio/speech"):
+        api_url = api_url[:-len("/v1/audio/speech")]
+    if api_url.endswith("/tts"):
+        return api_url
+    return f"{api_url}/tts"
+
+
+def voxcpm_tts(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:
+    """使用 VoxCPM-0.5B-Pack 的 multipart /tts 接口生成 WAV。"""
+    voxcpm_config = getattr(config, "voxcpm_05b", {}) or {}
+    api_url = _normalize_voxcpm_api_url(voxcpm_config.get("api_url", "http://127.0.0.1:7864"))
+    reference_audio = parse_voxcpm_voice(voice_name)
+    if reference_audio in ("", "default") or not os.path.isfile(reference_audio):
+        reference_audio = voxcpm_config.get("reference_audio", "") or ""
+    if reference_audio and not os.path.isfile(reference_audio):
+        logger.error(f"VoxCPM-0.5B 参考音频文件不存在: {reference_audio}")
+        return None
+
+    data = {"text": text.strip()}
+    optional_fields = {
+        "prompt_text": voxcpm_config.get("prompt_text"),
+        "cfg_value": voxcpm_config.get("cfg_value"),
+        "inference_timesteps": voxcpm_config.get("inference_timesteps"),
+        "max_length": voxcpm_config.get("max_length"),
+    }
+    for key, value in optional_fields.items():
+        if value not in (None, ""):
+            data[key] = value
+    for key in ("normalize", "denoise"):
+        if key in voxcpm_config:
+            data[key] = str(bool(voxcpm_config[key])).lower()
+
+    proxies = _get_configured_proxies()
+    for attempt in range(3):
+        files = {}
+        try:
+            if reference_audio:
+                files["prompt_audio"] = open(reference_audio, "rb")
+            response = requests.post(api_url, data=data, files=files or None, proxies=proxies, timeout=300)
+            if response.status_code == 200:
+                result = response.json()
+                audio_url = result.get("audio_url", "") if isinstance(result, dict) else ""
+                if audio_url:
+                    audio_response = requests.get(urljoin(api_url, audio_url), proxies=proxies, timeout=180)
+                    if audio_response.status_code == 200:
+                        with open(voice_file, "wb") as output:
+                            output.write(audio_response.content)
+                        if os.path.getsize(voice_file) > 0:
+                            sub_maker = new_sub_maker()
+                            duration = get_audio_duration_from_file(voice_file)
+                            duration_ms = int(duration * 1000) if duration > 0 else max(1000, len(text) * 200)
+                            add_subtitle_event(sub_maker, 0, duration_ms * 10000, text)
+                            return sub_maker
+                logger.error(f"VoxCPM-0.5B API 响应中没有有效音频地址: {result}")
+            else:
+                logger.error(f"VoxCPM-0.5B API 调用失败: {response.status_code} - {response.text}")
+        except (ValueError, requests.exceptions.RequestException) as exc:
+            logger.error(f"VoxCPM-0.5B TTS 请求失败 (尝试 {attempt + 1}/3): {exc}")
+        finally:
+            for file_obj in files.values():
+                file_obj.close()
+        if attempt < 2:
+            time.sleep(2)
+    return None
+
+
+def _normalize_voxcpm2_api_url(api_url: str) -> str:
+    api_url = (api_url or "http://127.0.0.1:7863").strip().rstrip("/")
+    for suffix in ("/v1/audio/speech", "/tts/batch"):
+        if api_url.endswith(suffix):
+            api_url = api_url[:-len(suffix)]
+    return api_url if api_url.endswith("/tts") else f"{api_url}/tts"
+
+
+def voxcpm2_tts(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:
+    """使用 VoxCPM-2B-Pack 的 /tts 接口进行音色设计或参考音频克隆。"""
+    pack_config = getattr(config, "voxcpm_2b", {}) or {}
+    api_url = _normalize_voxcpm2_api_url(pack_config.get("api_url", "http://127.0.0.1:7863"))
+    mode = str(pack_config.get("mode", "design"))
+    parsed_voice = parse_voxcpm2_voice(voice_name)
+    reference_audio = ""
+    if mode == "clone":
+        reference_audio = parsed_voice if parsed_voice and os.path.isfile(parsed_voice) else pack_config.get("reference_audio", "")
+        if not reference_audio or not os.path.isfile(reference_audio):
+            logger.error(f"VoxCPM-2B 参考音频文件不存在: {reference_audio}")
+            return None
+
+    data = {"text": text.strip()}
+    optional_fields = {
+        "control": pack_config.get("control"),
+        "prompt_text": pack_config.get("prompt_text") if mode == "clone" else None,
+        "cfg_value": pack_config.get("cfg_value"),
+        "inference_timesteps": pack_config.get("inference_timesteps"),
+    }
+    for key, value in optional_fields.items():
+        if value not in (None, ""):
+            data[key] = value
+    for key in ("normalize", "denoise", "output_48k", "context_aware", "streaming"):
+        if key in pack_config:
+            data[key] = str(bool(pack_config[key])).lower()
+
+    proxies = _get_configured_proxies()
+    for attempt in range(3):
+        files = {}
+        try:
+            if reference_audio:
+                files["reference_audio"] = open(reference_audio, "rb")
+            response = requests.post(api_url, data=data, files=files or None, proxies=proxies, timeout=600)
+            if response.status_code == 200:
+                result = response.json()
+                downloads = result.get("downloads", {}) if isinstance(result, dict) else {}
+                audio_url = downloads.get("wav", "") if isinstance(downloads, dict) else ""
+                if audio_url:
+                    audio_response = requests.get(urljoin(api_url, audio_url), proxies=proxies, timeout=180)
+                    if audio_response.status_code == 200:
+                        with open(voice_file, "wb") as output:
+                            output.write(audio_response.content)
+                        if os.path.getsize(voice_file) > 0:
+                            sub_maker = new_sub_maker()
+                            duration = get_audio_duration_from_file(voice_file)
+                            duration_ms = int(duration * 1000) if duration > 0 else max(1000, len(text) * 200)
+                            add_subtitle_event(sub_maker, 0, duration_ms * 10000, text)
+                            return sub_maker
+                logger.error(f"VoxCPM-2B API 响应中没有有效 WAV 下载地址: {result}")
+            else:
+                logger.error(f"VoxCPM-2B API 调用失败: {response.status_code} - {response.text}")
+        except (ValueError, requests.exceptions.RequestException) as exc:
+            logger.error(f"VoxCPM-2B TTS 请求失败 (尝试 {attempt + 1}/3): {exc}")
+        finally:
+            for file_obj in files.values():
+                file_obj.close()
+        if attempt < 2:
+            time.sleep(2)
     return None
 
 

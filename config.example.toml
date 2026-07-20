@@ -53,7 +53,8 @@
     #   - Qwen: qwen/qwen-plus, qwen/qwen-turbo
     #   - SiliconFlow: siliconflow/deepseek-ai/DeepSeek-R1
     #   - Moonshot: moonshot/moonshot-v1-8k
-    text_openai_model_name = "Pro/zai-org/GLM-5"
+    text_openai_model_name = "Pro/zai-org/GLM-5"  # 高推理模型：剧情分析、文案生成、脚本匹配
+    text_openai_fast_model_name = ""  # 高效率模型：字幕翻译、字幕校准；留空时回退到高推理模型
     text_openai_api_key = ""  # 填入对应 provider 的 API key
     text_openai_base_url = "https://api.siliconflow.cn/v1"  # 可选：自定义 API base URL；界面会提示 API key 将发送到对应端点
     text_openai_temperature = 1.0
@@ -66,6 +67,15 @@
     tavily_api_key = ""  # 获取地址：https://app.tavily.com
     tavily_search_depth = "basic"  # basic / advanced / fast / ultra-fast
     tavily_max_results = 5
+
+    # ===== 可选：Sonilo AI 配乐（BGM）=====
+    # 在 WebUI 背景音乐来源中选择 "AI 生成配乐（Sonilo）" 即可启用（默认关闭，不影响现有 BGM 逻辑）。
+    # 启用后会将合成完成的视频（未加 BGM）上传到 Sonilo API，根据画面内容与剪辑节奏生成配乐；
+    # 生成的音乐已获授权、可商用（以条款为准）。视频时长上限 6 分钟，生成失败时自动回退到随机背景音乐。
+    sonilo_api_key = ""  # 获取地址：https://sonilo.com
+    # sonilo_base_url = "https://api.sonilo.com"
+    # sonilo_timeout_seconds = 600  # 生成接口读超时（秒）
+    # sonilo_bgm_prompt = ""        # 可选：配乐风格提示，留空则完全根据画面生成
 
     # ===== API Keys 参考 =====
     # 主流 LLM Providers API Key 获取地址：
@@ -160,40 +170,51 @@
     num_beams = 3
     repetition_penalty = 10.0
 
+[indextts_macos]
+    # IndexTTS-1.5 macOS MLX Pack 语音克隆配置（仅适用于 Apple Silicon）
+    # 参考音频会通过 POST /v1/audio/speech/upload 上传
+    api_url = "http://127.0.0.1:7866"
+    reference_audio_source = "resource"
+    # reference_audio = "/path/to/reference_audio.wav"
+
+    speed = 1.0
+    # seed = 42
+    max_mel_tokens = 800
+    max_text_tokens_per_segment = 120
+    interval_silence = 200
+    temperature = 1.0
+    top_p = 0.8
+    top_k = 30
+    repetition_penalty = 10.0
+    segment_overlap_ms = 50
+
 [indextts2]
-    # IndexTTS-2 语音克隆配置
-    # 支持 IndexTTS2-Pack FastAPI 接口：POST /tts
-    api_url = "http://192.168.3.6:7863/tts"
+    # IndexTTS-2 MLX Pack 语音克隆配置
+    # 参考音频会通过 POST /v1/audio/speech/upload 上传；可填写服务根地址或完整接口地址
+    api_url = "http://127.0.0.1:7860"
 
     # 默认参考音频（可选），音色列表复用 IndexTTS-1.5 的资源目录
     reference_audio_source = "resource"
     # reference_audio = "/path/to/reference_audio.wav"
 
-    # 情感控制：speaker / audio / vector / text
-    emotion_mode = "speaker"
-    emotion_audio = ""
-    emotion_alpha = 0.65
-    emotion_text = ""
-    use_random = false
-    max_text_tokens_per_segment = 120
-
-    # 8 维情感向量，顺序：happy, angry, sad, afraid, disgusted, melancholic, surprised, calm
-    vec_happy = 0.0
-    vec_angry = 0.0
-    vec_sad = 0.0
-    vec_afraid = 0.0
-    vec_disgusted = 0.0
-    vec_melancholic = 0.0
-    vec_surprised = 0.0
-    vec_calm = 0.8
+    # 留空时保留参考音频情绪；支持单个情绪或混合权重，例如 happy:0.7,calm:0.3
+    emotion = ""
+    emo_alpha = 0.6
+    speed = 1.0
+    # 可选：设置固定随机种子以复现生成结果
+    # seed = 20260713
 
     # 高级生成参数
+    max_text_tokens_per_segment = 120
+    interval_silence = 200
     temperature = 0.8
     top_p = 0.8
     top_k = 30
-    num_beams = 3
     repetition_penalty = 10.0
     max_mel_tokens = 1500
+    diffusion_steps = 25
+    cfg_rate = 0.7
+    segment_overlap_ms = 50
 
 [omnivoice]
     # OmniVoice-Pack 语音合成配置
@@ -218,6 +239,35 @@
     denoise = true
     postprocess_output = true
     preprocess_prompt = true
+
+[voxcpm_05b]
+    # VoxCPM-0.5B-Pack 本地语音合成/参考音频克隆配置
+    # 启动整合包后，可填写服务根地址或完整 /tts 地址
+    api_url = "http://127.0.0.1:7864"
+    reference_audio_source = "resource"
+    reference_audio = ""
+    prompt_text = ""
+    cfg_value = 2.0
+    inference_timesteps = 10
+    max_length = 4096
+    normalize = true
+    denoise = false
+
+[voxcpm_2b]
+    # VoxCPM-2B-Pack 本地语音合成、音色设计与参考音频克隆
+    api_url = "http://127.0.0.1:7863"
+    mode = "design"
+    control = ""
+    reference_audio_source = "resource"
+    reference_audio = ""
+    prompt_text = ""
+    cfg_value = 2.0
+    inference_timesteps = 10
+    normalize = true
+    denoise = false
+    output_48k = true
+    context_aware = true
+    streaming = false
 
 [doubaotts]
     # 豆包语音 TTS 2.0 配置（单向流式接口）
