@@ -33,6 +33,10 @@ resource/fonts/*.ttc
 resource/fonts/*.ttf
 resource/fonts/*.otf
 resource/srt/*.srt
+resource/bgm/*.flac
+resource/bgm/*.mp3
+resource/tts_reference_audio/*.flac
+resource/tts_reference_audio/*.mp3
 app/models/faster-whisper-large-v2/*
 app/models/faster-whisper-large-v3/*
 app/models/bert/*
