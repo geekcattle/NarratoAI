@@ -1234,9 +1234,7 @@ def render_fun_asr_transcription(tr):
             )
             backend = backend_options[backend_label]
 
-            st.markdown(tr("Subtitle transcription package downloads"))
-
-            st.markdown(tr("Subtitle transcription package downloads"))
+            st.markdown(tr("Subtitle transcription package downloads"))           
 
             if backend == "resource":
                 # 从本地资源目录选择字幕文件
