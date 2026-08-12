@@ -252,7 +252,7 @@ def _build_plot_analysis_input(
     # 构建故事概要部分（如果用户提供）
     story_summary_section = ""
     if story_summary and story_summary.strip():
-        story_summary_section = f"""# 故事概要（用户提供）
+        story_summary_section = f"""# 故事概要
 {story_summary.strip()}
 
 """
@@ -374,6 +374,7 @@ def generate_short_drama_narration_copy(
     tr=lambda key: key,
     plot_analysis=None,
     subtitle_content=None,
+    story_summary: str = "",
     enable_web_search: bool = False,
     video_paths=None,
     narration_language: str = "简体中文（中国）",
@@ -410,6 +411,7 @@ def generate_short_drama_narration_copy(
             temperature,
             tr,
             subtitle_content=subtitle_content,
+            story_summary=story_summary,
             short_name=video_theme,
             enable_web_search=enable_web_search,
             video_paths=selected_video_paths,

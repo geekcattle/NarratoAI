@@ -1796,7 +1796,7 @@ def render_script_buttons(tr, params):
             and st.session_state.get(plot_source_key) == subtitle_path
         ):
             plot_analysis = st.session_state.get(plot_analysis_key, '')
-
+        
         if narration_copy_clicked:
             with st.spinner(tr("Generating narration copy...")):
                 copy_result = generate_short_drama_narration_copy(
@@ -1806,6 +1806,7 @@ def render_script_buttons(tr, params):
                     tr,
                     plot_analysis=plot_analysis,
                     subtitle_content=st.session_state.get('subtitle_content', ''),
+                    story_summary=st.session_state.get('story_summary', ''),
                     enable_web_search=web_search_enabled,
                     video_paths=_selected_video_paths(),
                     narration_language=narration_language,
