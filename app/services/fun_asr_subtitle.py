@@ -518,7 +518,7 @@ def fun_asr_result_to_srt(result_json: dict[str, Any], max_chars: int = 20, max_
 
     lines = []
     for index, block in enumerate(blocks, start=1):
-        text = f"{_speaker_prefix(block.get('speaker_id'))}{block['text']}"
+        text = f"{block['text']}"
         lines.append(_srt_block(index, block["start"], block["end"], text))
     return "\n".join(lines).rstrip() + "\n"
 
